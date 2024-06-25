@@ -1,0 +1,81 @@
+[
+    {
+      "Country": "China",
+      "Fossil fuels sources": 36222.58785,
+      "Low-carbon sources": 7195.872996,
+      "Region": "East Asia Pacific"
+    },
+    {
+      "Country": "Indonesia",
+      "Fossil fuels sources": 2068.531663,
+      "Low-carbon sources": 182.877434,
+      "Region": "East Asia Pacific"
+    },
+    {
+      "Country": "Russia",
+      "Fossil fuels sources": 7556.898861,
+      "Low-carbon sources": 1133.111644,
+      "Region": "Europe and Central Asia"
+    },
+    {
+      "Country": "Turkey",
+      "Fossil fuels sources": 1581.966414,
+      "Low-carbon sources": 279.5225517,
+      "Region": "Europe and Central Asia"
+    },
+    {
+      "Country": "Brazil",
+      "Fossil fuels sources": 1840.248858,
+      "Low-carbon sources": 1529.716619,
+      "Region": "Latin America and Caribbean"
+    },
+    {
+      "Country": "Mexico",
+      "Fossil fuels sources": 1657.604034,
+      "Low-carbon sources": 216.0925264,
+      "Region": "Latin America and Caribbean"
+    },
+    {
+      "Country": "Iran",
+      "Fossil fuels sources": 3333.616802,
+      "Low-carbon sources": 52.55197211,
+      "Region": "Middle East and North Africa"
+    },
+    {
+      "Country": "Egypt",
+      "Fossil fuels sources": 988.2385589,
+      "Low-carbon sources": 65.66415167,
+      "Region": "Middle East and North Africa"
+    },
+    {
+      "Country": "Canada",
+      "Fossil fuels sources": 2483.220204,
+      "Low-carbon sources": 1366.680287,
+      "Region": "North America"
+    },
+    {
+      "Country": "United States",
+      "Fossil fuels sources": 21016.76361,
+      "Low-carbon sources": 4654.851322,
+      "Region": "North America"
+    },
+    {
+      "Country": "India",
+      "Fossil fuels sources": 8814.637053,
+      "Low-carbon sources": 948.8110477,
+      "Region": "South Asia"
+    },
+    {
+      "Country": "Pakistan",
+      "Fossil fuels sources": 917.6985869,
+      "Low-carbon sources": 152.0718743,
+      "Region": "South Asia"
+    },
+    {
+      "Country": "South Africa",
+      "Fossil fuels sources": 1308.656389,
+      "Low-carbon sources": 72.36667817,
+      "Region": "Sub-Saharan Africa"
+    }
+  ]
+  
