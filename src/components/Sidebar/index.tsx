@@ -13,15 +13,74 @@ interface SidebarProps {
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   const pathname = usePathname();
-
   const trigger = useRef<any>(null);
   const sidebar = useRef<any>(null);
 
   let storedSidebarExpanded = "true";
-
   const [sidebarExpanded, setSidebarExpanded] = useState(
-    storedSidebarExpanded === null ? false : storedSidebarExpanded === "true",
+    storedSidebarExpanded === null ? false : storedSidebarExpanded === "true"
   );
+
+  // New state for project creation popup
+  const [showPopup, setShowPopup] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [projectStatus, setProjectStatus] = useState("Draft");
+
+  // Function to handle chart click
+  const handleChartClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowPopup(true);
+  };
+
+  // Function to create project
+  const createProject = async () => {
+    try {
+      // Fetch the demo HTML content
+      const htmlResponse = await fetch('/demo.html');
+      const htmlContent = await htmlResponse.text();
+      
+      // Create a Blob from the HTML content
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      
+      // Fetch the CSV data file
+      const csvResponse = await fetch('/Data.csv');
+      const csvContent = await csvResponse.text();
+      
+      // Create a Blob from the CSV content
+      const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+      
+      const formData = new FormData();
+      formData.append('name', newProjectName);
+      formData.append('description', newProjectDescription);
+      formData.append('html_file', htmlBlob, 'demo.html');
+      formData.append('data_file', csvBlob, 'Data.csv');
+      formData.append('project_status', projectStatus);
+      
+      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
+      }
+      
+      const result = await response.json();
+      console.log('Project created:', result);
+      
+      // Clear the form and close the popup
+      setNewProjectName("");
+      setNewProjectDescription("");
+      setProjectStatus("Draft");
+      setShowPopup(false);
+    } catch (error) {
+      console.error('Error creating project:', error);
+    }
+  };
+
 
   // close on click outside
   useEffect(() => {
@@ -59,12 +118,13 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   }, [sidebarExpanded]);
 
   return (
+    <>
     <aside
-      ref={sidebar}
-      className={`absolute left-0 top-0 z-9999 flex h-screen w-72.5 flex-col overflow-y-hidden bg-black duration-300 ease-linear dark:bg-boxdark lg:static lg:translate-x-0 ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}
-    >
+        ref={sidebar}
+        className={`absolute left-0 top-0 z-9999 flex h-screen w-72.5 flex-col overflow-y-hidden bg-black duration-300 ease-linear dark:bg-boxdark lg:static lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
       {/* <!-- SIDEBAR HEADER --> */}
       <div className="flex items-center justify-between gap-2 px-6 py-5.5 lg:py-6.5">
         <Link href="/">
@@ -273,6 +333,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                                 pathname === "/forms/form-elements" &&
                                 "text-white"
                               }`}
+                              onClick={handleChartClick}
                             >
                                <svg
                           className="fill-current"
@@ -300,6 +361,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                                 pathname === "/forms/form-layout" &&
                                 "text-white"
                               } `}
+                              onClick={handleChartClick}
                             >
                               <svg
                                     className="fill-current"
@@ -329,7 +391,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                               className={`group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white ${
                                 pathname === "/forms/form-layout" &&
                                 "text-white"
-                              } `}
+                              } `} 
+                              onClick={handleChartClick}
                              >
                              <svg
                 className="fill-current"
@@ -366,6 +429,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                                 pathname === "/forms/form-layout" &&
                                 "text-white"
                               } `}
+                              onClick={handleChartClick}
                             >
                             <svg
                             className="fill-current"
@@ -401,6 +465,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                                 pathname === "/forms/form-layout" &&
                                 "text-white"
                               } `}
+                              onClick={handleChartClick}
                             >
                               <svg
                               className="fill-current"
@@ -433,6 +498,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                                 pathname === "/forms/form-layout" &&
                                 "text-white"
                               } `}
+                              onClick={handleChartClick}
                             >
                               <svg
                               className="fill-current"
@@ -732,8 +798,46 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
         </nav>
         {/* <!-- Sidebar Menu --> */}
       </div>
-    </aside>
-  );
+      </aside>
+
+     {/* Project Creation Popup */}
+     {showPopup && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">Create New Project</h2>
+          <input
+            type="text"
+            placeholder="Project Name"
+            className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+          />
+          <textarea
+            placeholder="Project Description"
+            className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
+            value={newProjectDescription}
+            onChange={(e) => setNewProjectDescription(e.target.value)}
+          ></textarea>
+         
+          <div className="flex justify-end">
+            <button
+              className="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mr-4"
+              onClick={createProject}
+            >
+              Create
+            </button>
+            <button
+              className="px-6 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              onClick={() => setShowPopup(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 };
 
 export default Sidebar;

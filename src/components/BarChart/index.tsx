@@ -99,9 +99,26 @@ const BarChart = () => {
       link.href = canvas.toDataURL("image/png");
       link.download = "chart.png";
       link.click();
+  
+      // Fetch the list of projects to find the specific project
+      fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/list/')
+        .then(response => response.json())
+        .then(projects => {
+          const project = projects.find(p => p.name === "Sample Project"); // Change this to match the project you want to update
+          if (project) {
+            // Simulating update by displaying the project details
+            console.log('Project found:', project);
+            console.log('Simulating update to "published" status...');
+          } else {
+            console.error('Project not found');
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching projects:', error);
+        });
     });
   };
-
+  
 
   const handleGridVariationChange = (variation) => {
     setGridVariation(variation);
@@ -160,26 +177,11 @@ const BarChart = () => {
         <Breadcrumb pageName="Bar Chart" />
 
         <div className="inline-flex rounded-md shadow-sm" role="group">
-          <button
-            type="button"
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-gray-900 rounded-l-md hover:bg-gray-900 hover:text-white focus:z-10 focus:ring-2 focus:ring-gray-500 focus:bg-gray-900 focus:text-white dark:border-white dark:text-white dark:hover:text-white dark:hover:bg-gray-700 dark:focus:bg-gray-700"
-          >
-            <a href="/forms/bar-chart">Preview</a>
-          </button>
-          <button
-            type="button"
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-gray-900 rounded-r-md hover:bg-gray-900 hover:text-white focus:z-10 focus:ring-2 focus:ring-gray-500 focus:bg-gray-900 focus:text-white dark:border-white dark:text-white dark:hover:text-white dark:hover:bg-gray-700 dark:focus:bg-gray-700"
-          >
-            <a href="/data-table">Data</a>
-          </button>
+          
+          
         </div>
 
-        <button
-          className="px-6 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
-          onClick={handlePublishClick}
-        >
-          Publish
-        </button>
+        
       </div>
       
       <div className="flex">

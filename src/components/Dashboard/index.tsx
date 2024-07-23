@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-
+import { useRouter } from 'next/navigation';
 const Dashboard: React.FC = () => {
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
@@ -9,7 +9,10 @@ const Dashboard: React.FC = () => {
   const [projectStatus, setProjectStatus] = useState("Draft");
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-
+  const [showPopup, setShowPopup] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [projectCharts, setProjectCharts] = useState({});
+  const router = useRouter();
   // Fetch projects from the API
   useEffect(() => {
     const fetchProjects = async () => {
@@ -44,59 +47,62 @@ const Dashboard: React.FC = () => {
   }, [filter, searchQuery, projects]);
 
   const createProject = async () => {
-    if (!newProjectName || !newProjectDescription) {
-      alert('Name and description are required.');
-      return;
-    }
-
     try {
-      // Fetch demo.html file and encode it to base64
-      const htmlResponse = await fetch('/public/demo.html');
-      const htmlText = await htmlResponse.text();
-      const htmlBase64 = btoa(htmlText);
-
-      // Fetch Data.csv file and encode it to base64
+      // Fetch the demo HTML content
+      const htmlResponse = await fetch('/demo.html');
+      const htmlContent = await htmlResponse.text();
+  
+      // Create a Blob from the HTML content
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+  
+      // Fetch the CSV data file
       const csvResponse = await fetch('/Data.csv');
-      const csvText = await csvResponse.text();
-      const csvBase64 = btoa(csvText);
-
+      const csvContent = await csvResponse.text();
+  
+      // Create a Blob from the CSV content
+      const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+  
       const formData = new FormData();
       formData.append('name', newProjectName);
       formData.append('description', newProjectDescription);
-      formData.append('html_file', htmlBase64);
-      formData.append('data_file', csvBase64);
+      formData.append('html_file', htmlBlob, 'demo.html');
+      formData.append('data_file', csvBlob, 'Data.csv');
       formData.append('project_status', projectStatus);
-      formData.append('selected_column', JSON.stringify([]));
-
-      console.log('Creating project with data:', Object.fromEntries(formData.entries()));
-
+  
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
-        body: formData
+        body: formData,
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response data:', errorData);
-        throw new Error('Network response was not ok');
+        console.error('Error response:', errorData);
+        throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
       }
-
-      const createdProject = await response.json();
-      console.log('Created project:', createdProject);
-
-      const updatedProjects = [...projects, createdProject];
-      setProjects(updatedProjects);
-      setFilteredProjects(updatedProjects.filter(project => filter === "all" || project.project_status === filter));
-
+  
+      const result = await response.json();
+      console.log('Project created:', result);
+  
+      // Create a new project object with the returned data
+      const newProject = {
+        id: result.id,
+        name: newProjectName,
+        description: newProjectDescription,
+        project_status: projectStatus,
+      };
+  
+      // Update the projects list with the new project
+      setProjects(prevProjects => [...prevProjects, newProject]);
+      
       // Clear the form
       setNewProjectName("");
       setNewProjectDescription("");
       setProjectStatus("Draft");
+  
     } catch (error) {
-      console.error('Error creating project:', error.message);
+      console.error('Error creating project:', error);
     }
   };
-
 
   const deleteProject = async (id: number) => {
     try {
@@ -120,6 +126,39 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error deleting project:', error.message);
     }
+  };
+
+  const openPopup = (project) => {
+    if (projectCharts[project.id]) {
+      router.push(`/forms/${projectCharts[project.id]}?projectId=${project.id}`);
+    } else {
+      setSelectedProject(project);
+      setShowPopup(true);
+    }
+  };
+
+  const closePopup = () => {
+    setShowPopup(false);
+    setSelectedProject(null);
+  };
+
+  const chartOptions = [
+    { name: 'Bar Chart', icon: <img src= "/images/chart/horizontal bar-graph.png" alt="Bar Chart" style={{ width: '24px', height: '24px' }} /> , route: 'forms/form-elements'},
+    { name: 'Pie Chart', icon: <img src= "/images/chart/pie-chart.png" alt="Pie Chart" style={{ width: '24px', height: '24px' }} /> },
+    { name: 'Line Chart', icon: '📈' },
+    { name: 'Column & Line Chart', icon: '📊' },
+    { name: 'Area Chart', icon: <img src= "/images/chart/area-chart.png" alt="Area Chart" style={{ width: '24px', height: '24px' }} />},
+    { name: 'Waterfall Chart',icon : <img src= "/images/chart/waterfall-chart.png" alt="Waterfall Chart" style={{ width: '24px', height: '24px' }} /> }
+  ];
+
+  const mapOptions = [
+    { name: 'Maps', icon: '🗺️' },
+  ];
+
+  const selectChartForProject = (projectId, chartType) => {
+    setProjectCharts(prev => ({...prev, [projectId]: chartType}));
+    router.push(`/forms/${chartType}?projectId=${projectId}`);
+    closePopup();
   };
 
   return (
@@ -167,12 +206,16 @@ const Dashboard: React.FC = () => {
               {filteredProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="p-4 border border-gray-300 rounded-md shadow-sm bg-gray-100 flex justify-between items-center relative"
+                  className="p-4 border border-gray-300 rounded-md shadow-sm bg-gray-100 flex flex-col justify-between items-center relative cursor-pointer"
                   style={{ width: '100px', height: '100px' }}
+                  onClick={() => openPopup(project)}
                 >
                   <span className="truncate">{project.name}</span>
                   <button
-                    onClick={() => deleteProject(project.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteProject(project.id);
+                    }}
                     className="absolute bottom-1 right-1 text-red-500 hover:text-red-700"
                     style={{ width: '16px', height: '16px' }}
                   >
@@ -204,6 +247,58 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showPopup && selectedProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full">
+            <h2 className="text-2xl font-bold mb-4">Select a Chart or Map for {selectedProject.name}</h2>
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold mb-2">Charts</h3>
+              <div className="grid grid-cols-3 gap-4">
+              {chartOptions.map((option, index) => (
+  <button
+    key={index}
+    className="p-4 border border-gray-300 rounded-md hover:bg-gray-100 flex flex-col items-center"
+    onClick={() => {
+      if (option.route) {
+        router.push(`${option.route}?projectId=${selectedProject.id}`);
+      }
+      closePopup();
+    }}
+  >
+    <span className="text-3xl mb-2">{option.icon}</span>
+    <span>{option.name}</span>
+  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold mb-2">Maps</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {mapOptions.map((option, index) => (
+                  <button
+                    key={index}
+                    className="p-4 border border-gray-300 rounded-md hover:bg-gray-100 flex flex-col items-center"
+                    onClick={() => {
+                      console.log(`Selected ${option.name} for ${selectedProject.name}`);
+                      closePopup();
+                    }}
+                  >
+                    <span className="text-3xl mb-2">{option.icon}</span>
+                    <span>{option.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              className="mt-6 p-2 bg-gray-300 rounded-md hover:bg-gray-400"
+              onClick={closePopup}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };

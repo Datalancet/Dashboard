@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Sources by Country</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        #chart {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+
+    <script>
+        const data = [
+            ["China", 36222.58785, 7195.872996],
+            ["Indonesia", 2068.531663, 182.877434],
+            ["Russia", 7556.898861, 1133.111644],
+            ["Turkey", 1581.966414, 279.5225517],
+            ["Brazil", 1840.248858, 1529.716619],
+            ["Mexico", 1657.604034, 216.0925264],
+            ["Iran", 3333.616802, 52.55197211],
+            ["Egypt", 988.2385589, 65.66415167],
+            ["Canada", 2483.220204, 1366.680287],
+            ["United States", 21016.76361, 4654.851322],
+            ["India", 8814.637053, 948.8110477],
+            ["Pakistan", 917.6985869, 152.0718743],
+            ["South Africa", 1308.656389, 72.36667817]
+        ];
+
+        const countries = data.map(row => row[0]);
+        const fossilFuels = data.map(row => row[1]);
+        const lowCarbon = data.map(row => row[2]);
+
+        var options = {
+            series: [{
+                name: 'Fossil fuels sources',
+                data: fossilFuels
+            }, {
+                name: 'Low-carbon sources',
+                data: lowCarbon
+            }],
+            chart: {
+                type: 'bar',
+                height: 550,
+                stacked: true,
+                toolbar: {
+                    show: false
+                },
+            },
+            colors: ['#3C50E0', '#80CAEE'],
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    dataLabels: {
+                        enable: false
+                    }
+                },
+            },
+            stroke: {
+                width: 1,
+                colors: ['#fff']
+            },
+            title: {
+                text: 'Energy Sources by Country'
+            },
+            xaxis: {
+                categories: countries,
+                labels: {
+                    formatter: function (val) {
+                        return val + " TWh"
+                    }
+                }
+            },
+            yaxis: {
+                title: {
+                    text: undefined
+                },
+            },
+            tooltip: {
+                y: {
+                    formatter: function (val) {
+                        return val + " TWh"
+                    }
+                }
+            },
+            fill: {
+                opacity: 1
+            },
+            legend: {
+                position: 'top',
+                horizontalAlign: 'left',
+                offsetX: 40
+            }
+        };
+
+        var chart = new ApexCharts(document.querySelector("#chart"), options);
+        chart.render();
+    </script>
+</body>
+</html>
