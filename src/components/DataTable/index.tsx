@@ -55,7 +55,19 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     if (onDataChange) {
       onDataChange(headers, tableData);
     }
+    updateHTMLFile(headers, tableData);
   }, [tableData, headers, projectId]);
+   
+  const updateHTMLFile = async (headers, data) => {
+    const htmlContent = generateHTMLContent(headers, data);
+    if (projectId) {
+      try {
+        await updateHTMLFileOnServer(htmlContent);
+      } catch (error) {
+        console.error('Error updating HTML file:', error);
+      }
+    }
+  };
 
   useEffect(() => {
     const handleBeforeUnload = async (event) => {
@@ -130,8 +142,119 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     setTableData(dataRows);
   };
 
+  const generateHTMLContent = (headers, data) => {
+    const countries = data.map(row => row[0]);
+    const fossilFuels = data.map(row => parseFloat(row[1]));
+    const lowCarbon = data.map(row => parseFloat(row[2]));
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Sources by Country</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        #chart {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+
+    <script>
+        const data = ${JSON.stringify(data)};
+        const countries = ${JSON.stringify(countries)};
+        const fossilFuels = ${JSON.stringify(fossilFuels)};
+        const lowCarbon = ${JSON.stringify(lowCarbon)};
+
+        var options = {
+            series: [{
+                name: 'Fossil fuels sources',
+                data: fossilFuels
+            }, {
+                name: 'Low-carbon sources',
+                data: lowCarbon
+            }],
+            chart: {
+                type: 'bar',
+                height: 550,
+                stacked: true,
+                toolbar: {
+                    show: false
+                },
+            },
+            colors: ['#3C50E0', '#80CAEE'],
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    dataLabels: {
+                        enable: false
+                    }
+                },
+            },
+            stroke: {
+                width: 1,
+                colors: ['#fff']
+            },
+            title: {
+                text: 'Energy Sources by Country'
+            },
+            xaxis: {
+                categories: countries,
+                labels: {
+                    formatter: function (val) {
+                        return val + " TWh"
+                    }
+                }
+            },
+            yaxis: {
+                title: {
+                    text: undefined
+                },
+            },
+            tooltip: {
+                y: {
+                    formatter: function (val) {
+                        return val + " TWh"
+                    }
+                }
+            },
+            fill: {
+                opacity: 1
+            },
+            legend: {
+                position: 'top',
+                horizontalAlign: 'left',
+                offsetX: 40
+            }
+        };
+
+        var chart = new ApexCharts(document.querySelector("#chart"), options);
+        chart.render();
+    </script>
+</body>
+</html>
+    `;
+  };
+
   const updateDataFileOnServer = async (csvContent) => {
     try {
+      if (!projectId) {
+        throw new Error('No project ID available');
+      }
+  
       // Fetch existing project details
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
@@ -176,6 +299,52 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
       return result;
     } catch (error) {
       console.error('Error updating data file on server:', error);
+      throw error;
+    }
+  };
+
+  const updateHTMLFileOnServer = async (htmlContent) => {
+    try {
+      const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
+      if (!projectResponse.ok) {
+        throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
+      }
+      const projectData = await projectResponse.json();
+
+      const { name, description } = projectData.project_data;
+      const dataContent = projectData.data_file;
+
+      const formData = new FormData();
+      formData.append('id', projectId);
+      formData.append('name', name);
+      formData.append('description', description);
+      
+      // Append the new HTML content
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      formData.append('html_file', htmlBlob, '/demo.html');
+      
+      // Append the existing data file
+      const dataBlob = new Blob([atob(dataContent)], { type: 'text/csv' });
+      formData.append('data_file', dataBlob, 'data.csv');
+
+      formData.append('project_status', 'Draft');
+
+      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Server error response:', errorData);
+        throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
+      }
+
+      const result = await response.json();
+      console.log('Update result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error updating HTML file on server:', error);
       throw error;
     }
   };
