@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import dynamic from 'next/dynamic';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
-interface ChartTwoProps {
+interface StackedBarProps {
   headers?: string[];
   tableData?: (string | number)[][];
   color: string;
@@ -25,7 +25,7 @@ interface ChartTwoProps {
   yAxisTitle: string;
 }
 
-const ChartTwo: React.FC<ChartTwoProps> = ({ 
+const StackedBar: React.FC<StackedBarProps> = ({ 
   headers = [], 
   tableData = [], 
   color,
@@ -50,8 +50,8 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
 
   const options = useMemo(() => ({
     chart: {
-      type: design === "grid" && gridVariation === "multiple" ? "line" : "bar",
-      stacked: design === "grid" && gridVariation === "single",
+      type: 'bar',
+      stacked: true,
       toolbar: { show: false },
       events: {
         mounted: (chart: any) => {
@@ -161,7 +161,7 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
-      <div id="chartTwo" className="-mb-9 -ml-5">
+      <div id="StackedBar" className="-mb-9 -ml-5">
         <ReactApexChart
           options={options}
           series={series}
@@ -174,4 +174,4 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
   );
 };
 
-export default ChartTwo;
+export default StackedBar;

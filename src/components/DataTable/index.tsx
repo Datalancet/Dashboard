@@ -4,6 +4,7 @@ import Papa from "papaparse";
 import html2canvas from "html2canvas";
 import { useSearchParams } from "next/navigation";
 
+
 const DataTable = ({ onDataChange }) => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
@@ -16,6 +17,13 @@ const DataTable = ({ onDataChange }) => {
   const [dataPublished, setDataPublished] = useState(false);
   const [embedURL, setEmbedURL] = useState('');
   const chartRef = useRef(null);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [publishedImageURL, setPublishedImageURL] = useState('');
+  const [isPublished, setIsPublished] = useState(false);
+  const [embedType, setEmbedType] = useState('iframe');
+  const [scriptURL, setScriptURL] = useState('');
+
+
 
   const [defaultCSV, setDefaultCSV] = useState(`Country,Fossil fuels sources,Low-carbon sources,Region
 China,36222.58785,7195.872996,East Asia Pacific
@@ -127,8 +135,12 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     setTableData(updatedTableData);
   };
 
-  const handlePublishClick = () => {
-    setIsModalOpen(true);
+  const handlePublishClick = async () => {
+    if (isPublished) {
+      setIsPublishModalOpen(true);
+    } else {
+      setIsModalOpen(true);
+    }
   };
 
   const handleCloseModal = () => {
@@ -142,11 +154,7 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     setTableData(dataRows);
   };
 
-  const generateHTMLContent = (headers, data) => {
-    const countries = data.map(row => row[0]);
-    const fossilFuels = data.map(row => parseFloat(row[1]));
-    const lowCarbon = data.map(row => parseFloat(row[2]));
-
+  const generateHTMLContent = (imageDataURL) => {
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -154,99 +162,156 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Energy Sources by Country</title>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
         body {
             font-family: 'Arial', sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
         }
-        #chart {
+        #chart-container {
             background-color: white;
             border-radius: 8px;
             padding: 20px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 100%;
+            max-height: 100vh;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
         }
     </style>
 </head>
 <body>
-    <div id="chart"></div>
-
-    <script>
-        const data = ${JSON.stringify(data)};
-        const countries = ${JSON.stringify(countries)};
-        const fossilFuels = ${JSON.stringify(fossilFuels)};
-        const lowCarbon = ${JSON.stringify(lowCarbon)};
-
-        var options = {
-            series: [{
-                name: 'Fossil fuels sources',
-                data: fossilFuels
-            }, {
-                name: 'Low-carbon sources',
-                data: lowCarbon
-            }],
-            chart: {
-                type: 'bar',
-                height: 550,
-                stacked: true,
-                toolbar: {
-                    show: false
-                },
-            },
-            colors: ['#3C50E0', '#80CAEE'],
-            plotOptions: {
-                bar: {
-                    horizontal: true,
-                    dataLabels: {
-                        enable: false
-                    }
-                },
-            },
-            stroke: {
-                width: 1,
-                colors: ['#fff']
-            },
-            title: {
-                text: 'Energy Sources by Country'
-            },
-            xaxis: {
-                categories: countries,
-                labels: {
-                    formatter: function (val) {
-                        return val + " TWh"
-                    }
-                }
-            },
-            yaxis: {
-                title: {
-                    text: undefined
-                },
-            },
-            tooltip: {
-                y: {
-                    formatter: function (val) {
-                        return val + " TWh"
-                    }
-                }
-            },
-            fill: {
-                opacity: 1
-            },
-            legend: {
-                position: 'top',
-                horizontalAlign: 'left',
-                offsetX: 40
-            }
-        };
-
-        var chart = new ApexCharts(document.querySelector("#chart"), options);
-        chart.render();
-    </script>
+    <div id="chart-container">
+        <img src="${imageDataURL}" alt="Energy Sources by Country Chart" />
+    </div>
 </body>
 </html>
     `;
+  };
+
+  const convertImageToHTML = async (imageDataURL) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+  
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+  
+        let html = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Chart Representation</title>
+            <style>
+              body { margin: 0; padding: 0; }
+              .pixel-row { position: relative; height: 1px; }
+              .pixel-group { position: absolute; height: 1px; }
+            </style>
+          </head>
+          <body>
+        `;
+  
+        for (let y = 0; y < canvas.height; y++) {
+          html += `<div class="pixel-row">`;
+          let currentColor = null;
+          let currentWidth = 0;
+          let currentX = 0;
+  
+          for (let x = 0; x < canvas.width; x++) {
+            const index = (y * canvas.width + x) * 4;
+            const r = data[index];
+            const g = data[index + 1];
+            const b = data[index + 2];
+            const a = data[index + 3] / 255;
+            const color = `rgba(${r},${g},${b},${a})`;
+  
+            if (color === currentColor) {
+              currentWidth++;
+            } else {
+              if (currentColor) {
+                html += `<div class="pixel-group" style="left:${currentX}px;width:${currentWidth}px;background-color:${currentColor}"></div>`;
+              }
+              currentColor = color;
+              currentX = x;
+              currentWidth = 1;
+            }
+          }
+  
+          if (currentColor) {
+            html += `<div class="pixel-group" style="left:${currentX}px;width:${currentWidth}px;background-color:${currentColor}"></div>`;
+          }
+  
+          html += `</div>`;
+        }
+  
+        html += `
+          </body>
+          </html>
+        `;
+  
+        resolve(html);
+      };
+      img.src = imageDataURL;
+    });
+  };
+  const updateHTMLFileOnServer = async (htmlContent) => {
+    try {
+      const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
+      if (!projectResponse.ok) {
+        throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
+      }
+      const projectData = await projectResponse.json();
+
+      const { name, description } = projectData.project_data;
+      const dataContent = projectData.data_file;
+
+      const formData = new FormData();
+      formData.append('id', projectId);
+      formData.append('name', name);
+      formData.append('description', description);
+      
+      // Append the new HTML content
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      formData.append('html_file', htmlBlob, '/demo.html');
+      
+      // Append the existing data file
+      const dataBlob = new Blob([atob(dataContent)], { type: 'text/csv' });
+      formData.append('data_file', dataBlob, 'data.csv');
+
+      formData.append('project_status', 'Draft');
+
+      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Server error response:', errorData);
+        throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
+      }
+
+      const result = await response.json();
+      console.log('Update result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error updating HTML file on server:', error);
+      throw error;
+    }
   };
 
   const updateDataFileOnServer = async (csvContent) => {
@@ -303,51 +368,7 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     }
   };
 
-  const updateHTMLFileOnServer = async (htmlContent) => {
-    try {
-      const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
-      if (!projectResponse.ok) {
-        throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
-      }
-      const projectData = await projectResponse.json();
 
-      const { name, description } = projectData.project_data;
-      const dataContent = projectData.data_file;
-
-      const formData = new FormData();
-      formData.append('id', projectId);
-      formData.append('name', name);
-      formData.append('description', description);
-      
-      // Append the new HTML content
-      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-      formData.append('html_file', htmlBlob, '/demo.html');
-      
-      // Append the existing data file
-      const dataBlob = new Blob([atob(dataContent)], { type: 'text/csv' });
-      formData.append('data_file', dataBlob, 'data.csv');
-
-      formData.append('project_status', 'Draft');
-
-      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Server error response:', errorData);
-        throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
-      }
-
-      const result = await response.json();
-      console.log('Update result:', result);
-      return result;
-    } catch (error) {
-      console.error('Error updating HTML file on server:', error);
-      throw error;
-    }
-  };
   
   const updateProjectStatus = async (projectId) => {
     try {
@@ -424,25 +445,33 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     try {
       const chartElement = document.getElementById("chart");
       const canvas = await html2canvas(chartElement);
-  
-      const link = document.createElement("a");
-      link.href = canvas.toDataURL("image/png");
-      link.download = "chart.png";
-      link.click();
-  
+      
+      const imageDataURL = canvas.toDataURL("image/png");
+
+      // Convert image to HTML
+      const htmlContent = await convertImageToHTML(imageDataURL);
+
+      // Update the HTML file on the server
+      if (projectId) {
+        await updateHTMLFileOnServer(htmlContent);
+      }
+
       if (projectId) {
         const updateResult = await updateProjectStatus(projectId);
         
         console.log('Update result:', updateResult);
-  
+
         if (updateResult && updateResult.name && updateResult.description) {
           console.log('Updated project details:', updateResult);
           if (updateResult.project_status === "Published") {
             setDataPublished(true);
+            setIsPublished(true);
             
             // Construct the full embed URL with the domain
             const fullEmbedURL = `http://dashboardtool.pythonanywhere.com${updateResult.embed_url}`;
             setEmbedURL(fullEmbedURL);
+            const fullScriptURL = `http://dashboardtool.pythonanywhere.com${updateResult.embed_url.replace('/embed/', '/script/')}`;
+            setScriptURL(fullScriptURL);
             
             console.log('Updated project details with full embed URL:', {
               ...updateResult,
@@ -450,7 +479,8 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
               data_file: updateResult.data_file
             });
             
-            alert(`Project published successfully! Embed URL: ${fullEmbedURL}`);
+            setPublishedImageURL(imageDataURL);
+            setIsPublishModalOpen(true);
           } else {
             console.warn("Project status not updated to 'Published'. Current status:", updateResult.project_status);
             alert(`Project updated, but status is ${updateResult.project_status}. Please check again in a few moments.`);
@@ -464,37 +494,37 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         localStorage.setItem(`headers_null`, JSON.stringify(headers));
         alert("Project data saved locally.");
       }
-  
+
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error publishing project:', error);
       alert(`Failed to publish project: ${error.message}. Please check the console for more details.`);
     }
   };
+
+
+  const handleDownloadImage = () => {
+    const link = document.createElement("a");
+    link.href = publishedImageURL;
+    link.download = "chart.png";
+    link.click();
+  };
   const generateEmbedURL = (projectId) => {
     return `http://dashboardtool.pythonanywhere.com/embed/${projectId}`;
   };
+  
 
   return (
     <div className="relative p-4">
       <div className="flex space-x-2 mb-4">
-        <button
-          type="button"
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-gray-900 rounded-l-md hover:bg-gray-900 hover:text-white focus:z-10 focus:ring-2 focus:ring-gray-500 focus:bg-gray-900 focus:text-white dark:border-white dark:text-white dark:hover:text-white dark:hover:bg-gray-700 dark:focus:bg-gray-700"
-        >
-           <a href={`/forms/bar-chart${projectId ? `?projectId=${projectId}` : ''}`}>Preview</a>
-        </button>
-        <button
-          type="button"
-          className="px-4 py-2 text-sm font-medium text-white bg-primary border border-gray-900 rounded-r-md hover:bg-gray-900 hover:text-white focus:z-10 focus:ring-2 focus:ring-gray-500 focus:bg-gray-900 focus:text-white dark:border-white dark:text-white dark:hover:text-white dark:hover:bg-gray-700 dark:focus:bg-gray-700"
-        >
-           <a href={`/data-table${projectId ? `?projectId=${projectId}` : ''}`}>Data</a>
-        </button>
-        <button
-          className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+        
+      <button
+          className={`px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 ${
+            isPublished ? 'bg-green-500' : 'bg-primary'
+          }`}
           onClick={handlePublishClick}
         >
-          Publish
+          {isPublished ? 'Published' : 'Publish'}
         </button>
       </div>
 
@@ -554,28 +584,94 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         </div>
       )}
 
-      {isModalOpen && (
+{isModalOpen && !isPublished && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <h2 className="text-lg font-medium text-gray-900">Publish Chart</h2>
-            <p className="mt-2 text-sm text-gray-600">Click the button below to download the chart image and publish the project.</p>
+            <p className="mt-2 text-sm text-gray-600">Are you sure you want to publish this project?</p>
             <div className="mt-4 flex justify-end">
               <button
                 className="px-4 py-2 mr-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
-                onClick={handleCloseModal}
+                onClick={() => setIsModalOpen(false)}
               >
-                Close
+                Cancel
               </button>
               <button
                 className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark"
                 onClick={handlePublish}
               >
-                Publish and Download Image
+                Confirm Publish
               </button>
             </div>
           </div>
         </div>
       )}
+
+{isPublishModalOpen && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full">
+      <h2 className="text-lg font-medium text-gray-900 mb-4">Project Published Successfully!</h2>
+      <div className="mb-4">
+        <h3 className="text-md font-medium text-gray-700 mb-2">Embed URL:</h3>
+        <input 
+          type="text" 
+          value={embedURL} 
+          readOnly 
+          className="w-full p-2 border border-gray-300 rounded-md bg-gray-50"
+        />
+      </div>
+      <div className="mb-4">
+        <h3 className="text-md font-medium text-gray-700 mb-2">Embed Code:</h3>
+        <div className="flex items-center space-x-4 mb-2">
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              className="form-radio"
+              name="embedType"
+              value="iframe"
+              checked={embedType === 'iframe'}
+              onChange={() => setEmbedType('iframe')}
+            />
+            <span className="ml-2">iframe</span>
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              className="form-radio"
+              name="embedType"
+              value="script"
+              checked={embedType === 'script'}
+              onChange={() => setEmbedType('script')}
+            />
+            <span className="ml-2">script</span>
+          </label>
+        </div>
+        <textarea 
+          value={embedType === 'iframe' 
+            ? `<iframe src="${embedURL}" width="100%" height="400" frameborder="0"></iframe>`
+            : `<script src="${embedURL}"></script>`
+          }
+          readOnly 
+          className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 h-24"
+        />
+      </div>
+      <div className="flex justify-end">
+        <button
+          className="px-4 py-2 mr-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+          onClick={() => setIsPublishModalOpen(false)}
+        >
+          Close
+        </button>
+        <button
+          className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark"
+          onClick={handleDownloadImage}
+        >
+          Download Image
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

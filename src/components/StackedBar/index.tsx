@@ -2,14 +2,14 @@
 
 import React, { useState, useRef, useEffect, ChangeEvent } from "react";
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
-import ChartWithTable from "../ChartwithTable";
+import StackedChartWithTable from "../StackedChartwithTable";
 import html2canvas from "html2canvas";
 import { useSearchParams } from 'next/navigation';
 
-const BarChart = () => {
+const StackedBar = () => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') || 'default';
-  const chartType = 'bar'; // This identifies the chart type
+  const chartType = 'stacked-bar'; // This identifies the chart type
 
   const [design, setDesign] = useState(() => localStorage.getItem(`${projectId}_${chartType}_design`) || "default");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -144,12 +144,12 @@ const BarChart = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <Breadcrumb pageName="Bar Chart" />
+        <Breadcrumb pageName="Stacked Bar" />
       </div>
       
       <div className="flex">
         <div className="w-3/4" ref={chartRef}>
-        <ChartWithTable
+          <StackedChartWithTable
             design={design}
             color={color}
             gridVariation={gridVariation}
@@ -167,7 +167,7 @@ const BarChart = () => {
             yAxisTitle={yAxisTitle}
             projectId={projectId}
             chartType={chartType}
-            />
+          />
         </div>
         
         <div className="w-1/4 pl-4">
@@ -390,4 +390,4 @@ const BarChart = () => {
   );
 };
 
-export default BarChart;
+export default StackedBar;

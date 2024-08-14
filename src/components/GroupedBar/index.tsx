@@ -2,14 +2,14 @@
 
 import React, { useState, useRef, useEffect, ChangeEvent } from "react";
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
-import ChartWithTable from "../ChartwithTable";
+import GroupedChartWithTable from "../GroupedChartwithTable";
 import html2canvas from "html2canvas";
 import { useSearchParams } from 'next/navigation';
 
-const BarChart = () => {
+const GroupedBar = () => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') || 'default';
-  const chartType = 'bar'; // This identifies the chart type
+  const chartType = 'grouped-bar'; // This identifies the chart type
 
   const [design, setDesign] = useState(() => localStorage.getItem(`${projectId}_${chartType}_design`) || "default");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -144,12 +144,12 @@ const BarChart = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <Breadcrumb pageName="Bar Chart" />
+        <Breadcrumb pageName="Grouped Bar" />
       </div>
       
       <div className="flex">
         <div className="w-3/4" ref={chartRef}>
-        <ChartWithTable
+          <GroupedChartWithTable
             design={design}
             color={color}
             gridVariation={gridVariation}
@@ -167,7 +167,7 @@ const BarChart = () => {
             yAxisTitle={yAxisTitle}
             projectId={projectId}
             chartType={chartType}
-            />
+          />
         </div>
         
         <div className="w-1/4 pl-4">
@@ -361,33 +361,8 @@ const BarChart = () => {
 
         </div>
       </div>
-
-      
-
-      {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-lg font-medium text-gray-900">Publish Chart</h2>
-            <p className="mt-2 text-sm text-gray-600">Click the button below to download the chart image.</p>
-            <div className="mt-4 flex justify-end">
-              <button
-                className="px-4 py-2 mr-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
-                onClick={() => setIsModalOpen(false)}
-              >
-                Close
-              </button>
-              <button
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark"
-                onClick={handlePublish}
-              >
-                Download Image
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default BarChart;
+export default GroupedBar;

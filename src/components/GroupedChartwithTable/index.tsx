@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable/index";
-import ChartTwo from "@/components/Charts/ChartTwo";
+import GroupedBar from "../Charts/GroupedBar";
 import html2canvas from "html2canvas";
+import { useSearchParams } from 'next/navigation';
 
-interface ChartWithTableProps {
+interface GroupedChartWithTableProps {
   design: string;
   color: string;
   gridVariation: string;
@@ -21,11 +22,9 @@ interface ChartWithTableProps {
   seriesNames: string[];
   xAxisTitle: string;
   yAxisTitle: string;
-  projectId: string;
-  chartType: string;
 }
 
-const ChartWithTable: React.FC<ChartWithTableProps> = ({
+const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
   design,
   color,
   gridVariation,
@@ -40,10 +39,12 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
   labelPosition,
   xAxisTitle,
   yAxisTitle,
-  seriesNames,
-  projectId,
-  chartType
+  seriesNames
 }) => {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId') || 'default';
+  const chartType = 'grouped-bar'; // This identifies the chart type
+
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
 
@@ -89,10 +90,14 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
     localStorage.setItem(`${projectId}_${chartType}_tableData`, JSON.stringify(newData));
   };
 
+  console.log("GroupedChartWithTable received title:", chartTitle);
+  console.log("GroupedChartWithTable - Source Name:", sourceName);
+  console.log("GroupedChartWithTable - Source URL:", sourceURL);
+
   return (
     <div>
       <div id="chart">
-        <ChartTwo
+        <GroupedBar
           headers={headers}
           tableData={tableData}
           design={design}
@@ -117,4 +122,4 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
   );
 };
 
-export default ChartWithTable;
+export default GroupedChartWithTable;

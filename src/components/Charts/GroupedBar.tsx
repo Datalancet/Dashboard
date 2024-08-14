@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import dynamic from 'next/dynamic';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
-interface ChartTwoProps {
+interface GroupedBarProps {
   headers?: string[];
   tableData?: (string | number)[][];
   color: string;
@@ -25,7 +25,7 @@ interface ChartTwoProps {
   yAxisTitle: string;
 }
 
-const ChartTwo: React.FC<ChartTwoProps> = ({ 
+const GroupedBar: React.FC<GroupedBarProps> = ({ 
   headers = [], 
   tableData = [], 
   color,
@@ -50,8 +50,8 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
 
   const options = useMemo(() => ({
     chart: {
-      type: design === "grid" && gridVariation === "multiple" ? "line" : "bar",
-      stacked: design === "grid" && gridVariation === "single",
+      type: 'bar',
+      stacked: false,
       toolbar: { show: false },
       events: {
         mounted: (chart: any) => {
@@ -64,22 +64,25 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
     plotOptions: {
       bar: {
         horizontal: true,
-        borderRadius: 0,
-        columnWidth: "25%",
-        borderRadiusApplication: "end",
-        borderRadiusWhenStacked: "last",
+        columnWidth: '55%',
+        endingShape: 'rounded',
         dataLabels: {
-          position: labelPosition === 'above' ? 'top' : 'bottom',
+          position: labelPosition === 'above' ? 'top' : 'center',
         },
       },
     },
     dataLabels: {
-      enabled: isLabelStyle && labelPosition === 'above',
-      offsetX: labelPosition === 'above' ? 10 : 0,
+      enabled: isLabelStyle,
+      offsetX: labelPosition === 'above' ? 0 : -6,
       style: {
         fontSize: '12px',
         colors: ['#fff']
       }
+    },
+    stroke: {
+      show: true,
+      width: 2,
+      colors: ['transparent']
     },
     xaxis: {
       categories: countries,
@@ -139,7 +142,7 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
     },
   }), [
     color, design, gridVariation, xAxisPosition, yAxisPosition, titleAlignment, 
-    valuesPosition, chartTitle, sourceName, sourceURL,xAxisTitle,
+    valuesPosition, chartTitle, sourceName, sourceURL, xAxisTitle,
     yAxisTitle, isLabelStyle, labelPosition, countries
   ]);
 
@@ -161,11 +164,11 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
-      <div id="chartTwo" className="-mb-9 -ml-5">
+      <div id="GroupedBar" className="-mb-9 -ml-5">
         <ReactApexChart
           options={options}
           series={series}
-          type={options.chart.type}
+          type="bar"
           height={350}
           width={"100%"}
         />
@@ -174,4 +177,4 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
   );
 };
 
-export default ChartTwo;
+export default GroupedBar;

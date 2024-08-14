@@ -1,6 +1,8 @@
 "use client";
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+
 const Dashboard: React.FC = () => {
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
@@ -13,26 +15,29 @@ const Dashboard: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectCharts, setProjectCharts] = useState({});
   const router = useRouter();
-  // Fetch projects from the API
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/list/');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const data = await response.json();
-        setProjects(data);
-        setFilteredProjects(data);
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-      }
-    };
 
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/list/');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data = await response.json();
+      setProjects(data);
+      setFilteredProjects(data);
+      
+      // Load saved chart selections from localStorage
+      const savedCharts = JSON.parse(localStorage.getItem('projectCharts') || '{}');
+      setProjectCharts(savedCharts);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  };
+
+  useEffect(() => {
     fetchProjects();
   }, []);
 
-  // Filter projects based on the selected filter and search query
   useEffect(() => {
     let filtered = projects;
     if (filter !== "all") {
@@ -48,57 +53,49 @@ const Dashboard: React.FC = () => {
 
   const createProject = async () => {
     try {
-      // Fetch the demo HTML content
       const htmlResponse = await fetch('/demo.html');
       const htmlContent = await htmlResponse.text();
-  
-      // Create a Blob from the HTML content
       const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-  
-      // Fetch the CSV data file
+      
       const csvResponse = await fetch('/Data.csv');
       const csvContent = await csvResponse.text();
-  
-      // Create a Blob from the CSV content
       const csvBlob = new Blob([csvContent], { type: 'text/csv' });
-  
+      
       const formData = new FormData();
       formData.append('name', newProjectName);
       formData.append('description', newProjectDescription);
       formData.append('html_file', htmlBlob, 'demo.html');
       formData.append('data_file', csvBlob, 'Data.csv');
       formData.append('project_status', projectStatus);
-  
+      
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
         body: formData,
       });
-  
+      
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response:', errorData);
         throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
       }
-  
+      
       const result = await response.json();
       console.log('Project created:', result);
-  
-      // Create a new project object with the returned data
-      const newProject = {
-        id: result.id,
-        name: newProjectName,
-        description: newProjectDescription,
-        project_status: projectStatus,
-      };
-  
-      // Update the projects list with the new project
-      setProjects(prevProjects => [...prevProjects, newProject]);
       
-      // Clear the form
+      // Refresh the project list
+      await fetchProjects();
+      
+      // Find the newly created project in the updated list
+      const newProject = projects.find(p => p.id === result.id);
+      
       setNewProjectName("");
       setNewProjectDescription("");
       setProjectStatus("Draft");
-  
+      
+      // Open the chart selection popup for the new project
+      if (newProject) {
+        setSelectedProject(newProject);
+        setShowPopup(true);
+      }
     } catch (error) {
       console.error('Error creating project:', error);
     }
@@ -112,25 +109,31 @@ const Dashboard: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response data:', errorData);
         throw new Error('Network response was not ok');
       }
 
       const result = await response.json();
       console.log('Delete result:', result);
 
-      // Update projects list after deletion
-      const updatedProjects = projects.filter(project => project.id !== id);
-      setProjects(updatedProjects);
-      setFilteredProjects(updatedProjects.filter(project => filter === "all" || project.project_status === filter));
+      // Refresh the project list
+      await fetchProjects();
+      
+      // Remove the chart selection for the deleted project
+      const updatedCharts = { ...projectCharts };
+      delete updatedCharts[id];
+      setProjectCharts(updatedCharts);
+      localStorage.setItem('projectCharts', JSON.stringify(updatedCharts));
     } catch (error) {
       console.error('Error deleting project:', error.message);
     }
   };
 
   const openPopup = (project) => {
-    if (projectCharts[project.id]) {
-      router.push(`/forms/${projectCharts[project.id]}?projectId=${project.id}`);
+    const projectChart = projectCharts[project.id];
+    if (projectChart && projectChart.specificType) {
+      router.push(`/forms/${projectChart.specificType}?projectId=${project.id}`);
+    } else if (projectChart && projectChart.generalType) {
+      router.push(`/forms/form-elements?projectId=${project.id}&chartType=${projectChart.generalType}`);
     } else {
       setSelectedProject(project);
       setShowPopup(true);
@@ -143,24 +146,28 @@ const Dashboard: React.FC = () => {
   };
 
   const chartOptions = [
-    { name: 'Bar Chart', icon: <img src= "/images/chart/horizontal bar-graph.png" alt="Bar Chart" style={{ width: '24px', height: '24px' }} /> , route: 'forms/form-elements'},
-    { name: 'Pie Chart', icon: <img src= "/images/chart/pie-chart.png" alt="Pie Chart" style={{ width: '24px', height: '24px' }} /> },
-    { name: 'Line Chart', icon: '📈' },
-    { name: 'Column & Line Chart', icon: '📊' },
-    { name: 'Area Chart', icon: <img src= "/images/chart/area-chart.png" alt="Area Chart" style={{ width: '24px', height: '24px' }} />},
-    { name: 'Waterfall Chart',icon : <img src= "/images/chart/waterfall-chart.png" alt="Waterfall Chart" style={{ width: '24px', height: '24px' }} /> }
+    { name: 'Bar Chart', icon: <img src="/images/chart/horizontal bar-graph.png" alt="Bar Chart" style={{ width: '24px', height: '24px' }} />, route: 'bar-chart' },
+    { name: 'Pie Chart', icon: <img src="/images/chart/pie-chart.png" alt="Pie Chart" style={{ width: '24px', height: '24px' }} />, route: 'pie-chart' },
+    { name: 'Line Chart', icon: '📈', route: 'line-chart' },
+    { name: 'Column & Line Chart', icon: '📊', route: 'column-line-chart' },
+    { name: 'Area Chart', icon: <img src="/images/chart/area-chart.png" alt="Area Chart" style={{ width: '24px', height: '24px' }} />, route: 'area-chart' },
+    { name: 'Waterfall Chart', icon: <img src="/images/chart/waterfall-chart.png" alt="Waterfall Chart" style={{ width: '24px', height: '24px' }} />, route: 'waterfall-chart' }
   ];
 
   const mapOptions = [
-    { name: 'Maps', icon: '🗺️' },
+    { name: 'Maps', icon: '🗺️', route: 'maps' },
   ];
 
-  const selectChartForProject = (projectId, chartType) => {
-    setProjectCharts(prev => ({...prev, [projectId]: chartType}));
-    router.push(`/forms/${chartType}?projectId=${projectId}`);
+  const selectChartForProject = (projectId, generalType) => {
+    const updatedCharts = { 
+      ...projectCharts, 
+      [projectId]: { generalType, specificType: null } 
+    };
+    setProjectCharts(updatedCharts);
+    localStorage.setItem('projectCharts', JSON.stringify(updatedCharts));
+    router.push(`/forms/form-elements?projectId=${projectId}&chartType=${generalType}`);
     closePopup();
   };
-
   return (
     <>
       <div className="mt-4 grid grid-cols-12 gap-4 md:mt-6 md:gap-6 2xl:mt-7.5 2xl:gap-7.5">
@@ -220,10 +227,7 @@ const Dashboard: React.FC = () => {
                     style={{ width: '16px', height: '16px' }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26" width="16px" height="16px">
-                      <path
-                        d="M 11 -0.03125 C 10.164063 -0.03125 9.34375 0.132813 8.75 0.71875 C 8.15625 1.304688 7.96875 2.136719 7.96875 3 L 4 3 C 3.449219 3 3 3.449219 3 4 L 2 4 L 2 6 L 24 6 L 24 4 L 23 4 C 23 3.449219 22.550781 3 22 3 L 18.03125 3 C 18.03125 2.136719 17.84375 1.304688 17.25 0.71875 C 16.65625 0.132813 15.835938 -0.03125 15 -0.03125 Z M 11 2.03125 L 15 2.03125 C 15.546875 2.03125 15.71875 2.160156 15.78125 2.21875 C 15.84375 2.277344 15.96875 2.441406 15.96875 3 L 10.03125 3 C 10.03125 2.441406 10.15625 2.277344 10.21875 2.21875 C 10.28125 2.160156 10.453125 2.03125 11 2.03125 Z M 4 7 L 4 23 C 4 24.652344 5.347656 26 7 26 L 19 26 C 20.652344 26 22 24.652344 22 23 L 22 7 Z M 8 10 L 10 10 L 10 22 L 8 22 Z M 12 10 L 14 10 L 14 22 L 12 22 Z M 16 10 L 18 10 L 18 22 L 16 22 Z"
-                        fill="currentColor"
-                      />
+                      <path d="M 11 -0.03125 C 10.164063 -0.03125 9.34375 0.132813 8.75 0.71875 C 8.15625 1.304688 7.96875 2.136719 7.96875 3 L 4 3 C 3.449219 3 3 3.449219 3 4 L 2 4 L 2 6 L 24 6 L 24 4 L 23 4 C 23 3.449219 22.550781 3 22 3 L 18.03125 3 C 18.03125 2.136719 17.84375 1.304688 17.25 0.71875 C 16.65625 0.132813 15.835938 -0.03125 15 -0.03125 Z M 11 2.03125 L 15 2.03125 C 15.546875 2.03125 15.71875 2.160156 15.78125 2.21875 C 15.84375 2.277344 15.96875 2.441406 15.96875 3 L 10.03125 3 C 10.03125 2.441406 10.15625 2.277344 10.21875 2.21875 C 10.28125 2.160156 10.453125 2.03125 11 2.03125 Z M 4 7 L 4 23 C 4 24.652344 5.347656 26 7 26 L 19 26 C 20.652344 26 22 24.652344 22 23 L 22 7 Z M 8 10 L 10 10 L 10 22 L 8 22 Z M 12 10 L 14 10 L 14 22 L 12 22 Z M 16 10 L 18 10 L 18 22 L 16 22 Z" fill="currentColor" />
                     </svg>
                   </button>
                 </div>
@@ -255,20 +259,15 @@ const Dashboard: React.FC = () => {
             <div className="mb-6">
               <h3 className="text-xl font-semibold mb-2">Charts</h3>
               <div className="grid grid-cols-3 gap-4">
-              {chartOptions.map((option, index) => (
-  <button
-    key={index}
-    className="p-4 border border-gray-300 rounded-md hover:bg-gray-100 flex flex-col items-center"
-    onClick={() => {
-      if (option.route) {
-        router.push(`${option.route}?projectId=${selectedProject.id}`);
-      }
-      closePopup();
-    }}
-  >
-    <span className="text-3xl mb-2">{option.icon}</span>
-    <span>{option.name}</span>
-  </button>
+                {chartOptions.map((option, index) => (
+                  <button
+                    key={index}
+                    className="p-4 border border-gray-300 rounded-md hover:bg-gray-100 flex flex-col items-center"
+                    onClick={() => selectChartForProject(selectedProject.id, option.route)}
+                  >
+                    <span className="text-3xl mb-2">{option.icon}</span>
+                    <span>{option.name}</span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -279,10 +278,7 @@ const Dashboard: React.FC = () => {
                   <button
                     key={index}
                     className="p-4 border border-gray-300 rounded-md hover:bg-gray-100 flex flex-col items-center"
-                    onClick={() => {
-                      console.log(`Selected ${option.name} for ${selectedProject.name}`);
-                      closePopup();
-                    }}
+                    onClick={() => selectChartForProject(selectedProject.id, option.route)}
                   >
                     <span className="text-3xl mb-2">{option.icon}</span>
                     <span>{option.name}</span>
