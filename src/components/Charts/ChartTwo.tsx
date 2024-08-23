@@ -23,6 +23,10 @@ interface ChartTwoProps {
   seriesNames?: string[];
   xAxisTitle: string;
   yAxisTitle: string;
+  logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  showLogo: boolean;
+  logoUrl: string;
+  
 }
 
 const ChartTwo: React.FC<ChartTwoProps> = ({ 
@@ -42,11 +46,37 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
   labelPosition,
   xAxisTitle,
   yAxisTitle,
-  seriesNames = ["Fossil fuels sources", "Low-carbon sources"]
+  seriesNames = ["Fossil fuels sources", "Low-carbon sources"],
+  logoPosition = 'top-right',
+  logoUrl = '/favicon.ico',
+  showLogo = true
 }) => {
   const countries = tableData.map(row => row[0] as string);
   const fossilFuels = tableData.map(row => parseFloat(row[1] as string) || 0);
   const lowCarbon = tableData.map(row => parseFloat(row[2] as string) || 0);
+
+
+  const getLogoStyle = (position: string) => {
+    const base = {
+      position: 'absolute',
+      width: '20px',
+      height: '20px',
+    };
+    switch (position) {
+      case 'top-right':
+        return { ...base, top: '-20px', right: '-20px' };
+      case 'top-left':
+        return { ...base, top: '-20px', left: '-20px' };
+      case 'bottom-right':
+        return { ...base, bottom: '20px', right: '-20px' };
+      case 'bottom-left':
+        return { ...base, bottom: '20px', left: '-20px' };
+      default:
+        return { ...base, top: '10px', right: '10px' };
+    }
+  };
+
+  const logoStyle = getLogoStyle(logoPosition);
 
   const options = useMemo(() => ({
     chart: {
@@ -119,6 +149,9 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
       }
     },
     annotations: {
+      images: [{
+      
+      }],
       yaxis: [{
         y: 0,
         borderColor: 'transparent',
@@ -139,8 +172,8 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
     },
   }), [
     color, design, gridVariation, xAxisPosition, yAxisPosition, titleAlignment, 
-    valuesPosition, chartTitle, sourceName, sourceURL,xAxisTitle,
-    yAxisTitle, isLabelStyle, labelPosition, countries
+    valuesPosition, chartTitle, sourceName, sourceURL, xAxisTitle,
+    yAxisTitle, isLabelStyle, labelPosition, countries, logoPosition
   ]);
 
   const series = useMemo(() => [
@@ -161,6 +194,7 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
+       <div style={{ position: 'relative' }}>
       <div id="chartTwo" className="-mb-9 -ml-5">
         <ReactApexChart
           options={options}
@@ -170,6 +204,14 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
           width={"100%"}
         />
       </div>
+      {showLogo && (
+          <img 
+            src={logoUrl}
+            alt="Logo" 
+            style={logoStyle}
+          />
+        )}
+        </div>
     </div>
   );
 };

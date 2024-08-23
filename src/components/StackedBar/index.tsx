@@ -32,6 +32,27 @@ const StackedBar = () => {
     return savedNames ? JSON.parse(savedNames) : ["Fossil fuels sources", "Low-carbon sources"];
   });
 
+  const [logoPosition, setLogoPosition] = useState<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'>(
+    () => (localStorage.getItem(`${projectId}_${chartType}_logoPosition`) as 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left') || 'top-right'
+  );
+  const [logoUrl, setLogoUrl] = useState(() => {
+    const savedLogoUrl = localStorage.getItem(`${projectId}_${chartType}_logoUrl`);
+    return savedLogoUrl || '/favicon.ico';
+  });
+  
+  const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const newLogoUrl = e.target?.result as string;
+        setLogoUrl(newLogoUrl);
+        localStorage.setItem(`${projectId}_${chartType}_logoUrl`, newLogoUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,7 +72,9 @@ const StackedBar = () => {
     localStorage.setItem(`${projectId}_${chartType}_color`, color);
     localStorage.setItem(`${projectId}_${chartType}_xAxisTitle`, xAxisTitle);
     localStorage.setItem(`${projectId}_${chartType}_yAxisTitle`, yAxisTitle);
-  }, [design, isGridMode, gridVariation, isLabelStyle, labelPosition, xAxisPosition, yAxisPosition, titleAlignment, sourceName, sourceURL, valuesPosition, chartTitle, color, seriesNames, xAxisTitle, yAxisTitle, projectId, chartType]);
+    localStorage.setItem(`${projectId}_${chartType}_logoPosition`, logoPosition);
+    localStorage.setItem(`${projectId}_${chartType}_logoUrl`, logoUrl);
+  }, [design, isGridMode, gridVariation, isLabelStyle, labelPosition, xAxisPosition, yAxisPosition, titleAlignment, sourceName, sourceURL, valuesPosition, chartTitle, color, seriesNames, xAxisTitle, yAxisTitle, projectId, chartType,logoPosition, logoUrl]);
 
   const handleDesignChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const selectedDesign = event.target.value;
@@ -128,6 +151,10 @@ const StackedBar = () => {
     console.log("Updated Series Names:", newSeriesNames); 
   };
 
+  const handleLogoPositionChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setLogoPosition(event.target.value as 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left');
+  };
+
   const handlePublish = () => {
     const chartElement = document.getElementById("chart");
     if (chartElement) {
@@ -167,6 +194,8 @@ const StackedBar = () => {
             yAxisTitle={yAxisTitle}
             projectId={projectId}
             chartType={chartType}
+            logoPosition={logoPosition}
+            logoUrl={logoUrl}
           />
         </div>
         
@@ -214,6 +243,36 @@ const StackedBar = () => {
                 />
               </div>
             ))}
+          </div>
+          <div className="mb-4">
+  <label htmlFor="logo-upload" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Upload Logo</label>
+  <input
+    id="logo-upload"
+    type="file"
+    accept="image/*"
+    onChange={handleLogoUpload}
+    className="block w-full text-sm text-gray-500
+      file:mr-4 file:py-2 file:px-4
+      file:rounded-full file:border-0
+      file:text-sm file:font-semibold
+      file:bg-violet-50 file:text-violet-700
+      hover:file:bg-violet-100"
+  />
+</div>
+
+          <div className="mb-4">
+            <label htmlFor="logo-position" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Logo Position</label>
+            <select
+              id="logo-position"
+              value={logoPosition}
+              onChange={handleLogoPositionChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            >
+              <option value="top-right">Top Right</option>
+              <option value="top-left">Top Left</option>
+              <option value="bottom-right">Bottom Right</option>
+              <option value="bottom-left">Bottom Left</option>
+            </select>
           </div>
           <div className="mb-4">
             <label htmlFor="design-select" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Chart type</label>

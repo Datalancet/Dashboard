@@ -4,7 +4,6 @@ import Papa from "papaparse";
 import html2canvas from "html2canvas";
 import { useSearchParams } from "next/navigation";
 
-
 const DataTable = ({ onDataChange }) => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
@@ -14,15 +13,16 @@ const DataTable = ({ onDataChange }) => {
   const [headers, setHeaders] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dataUploaded, setDataUploaded] = useState(false);
-  const [dataPublished, setDataPublished] = useState(false);
+  const [isPublished, setIsPublished] = useState(false);
   const [embedURL, setEmbedURL] = useState('');
+  const [scriptURL, setScriptURL] = useState('');
   const chartRef = useRef(null);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [publishedImageURL, setPublishedImageURL] = useState('');
-  const [isPublished, setIsPublished] = useState(false);
   const [embedType, setEmbedType] = useState('iframe');
-  const [scriptURL, setScriptURL] = useState('');
-
+  const [isRepublishModalOpen, setIsRepublishModalOpen] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showUnsavedChangesPopup, setShowUnsavedChangesPopup] = useState(false);
 
 
   const [defaultCSV, setDefaultCSV] = useState(`Country,Fossil fuels sources,Low-carbon sources,Region
@@ -40,20 +40,38 @@ India,8814.637053,948.8110477,South Asia
 Pakistan,917.6985869,152.0718743,South Asia
 South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
 
+
+useEffect(() => {
+  const handleBeforeUnload = (e) => {
+    if (hasUnsavedChanges && !isPublished) {
+      e.preventDefault();
+      e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+    }
+  };
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  };
+}, [hasUnsavedChanges, isPublished]);
+
+useEffect(() => {
+  if (projectId) {
+    fetchProjectDetails();
+  } else {
+    parseDefaultCSV();
+  }
+}, [projectId]);
+
   useEffect(() => {
     if (projectId) {
-      const storedData = localStorage.getItem(`tableData_${projectId}`);
-      const storedHeaders = localStorage.getItem(`headers_${projectId}`);
-      if (storedData && storedHeaders) {
-        setTableData(JSON.parse(storedData));
-        setHeaders(JSON.parse(storedHeaders));
-      } else {
-        parseDefaultCSV();
-      }
-    } else {
-      parseDefaultCSV();
+      const storedEmbedURL = localStorage.getItem(`embedURL_${projectId}`);
+      const storedScriptURL = localStorage.getItem(`scriptURL_${projectId}`);
+      if (storedEmbedURL) setEmbedURL(storedEmbedURL);
+      if (storedScriptURL) setScriptURL(storedScriptURL);
     }
-  }, [projectId]);
+  }, [projectId])
 
   useEffect(() => {
     if (projectId && tableData.length > 0) {
@@ -65,7 +83,121 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     }
     updateHTMLFile(headers, tableData);
   }, [tableData, headers, projectId]);
-   
+  
+
+
+  const handleDownloadHTML = () => {
+    try {
+      if (!projectId) {
+        throw new Error('No project ID available');
+      }
+  
+      // Retrieve HTML content from local storage
+      const htmlContent = localStorage.getItem(`htmlContent_${projectId}`);
+  
+      if (!htmlContent) {
+        throw new Error('No HTML content found in local storage for this project');
+      }
+  
+      // Create a Blob with the HTML content
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+  
+      // Create a temporary URL for the Blob
+      const url = URL.createObjectURL(blob);
+  
+      // Create a temporary anchor element and trigger the download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `project_${projectId}_html.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+  
+      // Revoke the temporary URL
+      URL.revokeObjectURL(url);
+  
+      console.log('HTML file downloaded successfully from local storage');
+    } catch (error) {
+      console.error('Error downloading HTML:', error);
+      alert(`Failed to download HTML: ${error.message}`);
+    }
+  };
+  const fetchProjectDetails = async () => {
+    try {
+      console.log(`Fetching project details for projectId: ${projectId}`);
+  
+      const response = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch project details: ${response.status}`);
+      }
+      const projectData = await response.json();
+      
+      console.log('Fetched project data:', projectData);
+  
+      if (projectData && projectData.project_data) {
+        console.log('Project status:', projectData.project_data.project_status);
+  
+        const isPublishedInLocalStorage = localStorage.getItem(`isPublished_${projectId}`) === 'true';
+        setIsPublished(isPublishedInLocalStorage);
+  
+        if (isPublishedInLocalStorage) {
+          // Retrieve stored image URL
+          const storedImageURL = localStorage.getItem(`publishedImageURL_${projectId}`);
+          if (storedImageURL) {
+            setPublishedImageURL(storedImageURL);
+          }
+
+          // Use stored URLs if available
+          const storedEmbedURL = localStorage.getItem(`embedURL_${projectId}`);
+          const storedScriptURL = localStorage.getItem(`scriptURL_${projectId}`);
+  
+          if (storedEmbedURL && storedScriptURL) {
+            console.log('Using stored URLs from localStorage');
+            setEmbedURL(storedEmbedURL);
+            setScriptURL(storedScriptURL);
+          } else {
+            console.warn('Generating default URLs');
+            const fullEmbedURL = `http://dashboardtool.pythonanywhere.com/embed/${projectId}`;
+            const fullScriptURL = `http://dashboardtool.pythonanywhere.com/script/${projectId}`;
+            setEmbedURL(fullEmbedURL);
+            setScriptURL(fullScriptURL);
+            localStorage.setItem(`embedURL_${projectId}`, fullEmbedURL);
+            localStorage.setItem(`scriptURL_${projectId}`, fullScriptURL);
+          }
+  
+          // Use stored HTML content if available
+          const storedHtmlContent = localStorage.getItem(`htmlContent_${projectId}`);
+          if (storedHtmlContent) {
+            console.log('Using stored HTML content');
+            // Update the server with the stored HTML content
+            await updateHTMLFileOnServer(storedHtmlContent, false);
+          }
+        }
+  
+        // Use stored data if available, otherwise use data from API
+        const storedTableData = localStorage.getItem(`tableData_${projectId}`);
+        const storedHeaders = localStorage.getItem(`headers_${projectId}`);
+        
+        if (storedTableData && storedHeaders) {
+          setTableData(JSON.parse(storedTableData));
+          setHeaders(JSON.parse(storedHeaders));
+        } else if (projectData.data_file) {
+          console.log('Parsing CSV data from project');
+          const csvContent = atob(projectData.data_file);
+          parseCSV(csvContent);
+        } else {
+          console.log('No data found, using default CSV');
+          parseDefaultCSV();
+        }
+      } else {
+        console.warn('Unexpected project data structure:', projectData);
+        parseDefaultCSV();
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      parseDefaultCSV();
+    }
+  };
   const updateHTMLFile = async (headers, data) => {
     const htmlContent = generateHTMLContent(headers, data);
     if (projectId) {
@@ -77,21 +209,6 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     }
   };
 
-  useEffect(() => {
-    const handleBeforeUnload = async (event) => {
-      if (dataUploaded && !dataPublished) {
-        event.preventDefault();
-        event.returnValue = "";
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [dataUploaded, dataPublished]);
-
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (file && file.size <= 2 * 1024 * 1024) {
@@ -101,7 +218,8 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         setDefaultCSV(content);
         parseCSV(content);
         setDataUploaded(true);
-        setDataPublished(false);
+        setIsPublished(false);
+        setHasUnsavedChanges(true);
         
         if (projectId) {
           await updateDataFileOnServer(content);
@@ -123,16 +241,22 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
       reader.readAsText(file);
     });
   };
+
   const parseDefaultCSV = () => {
     const result = Papa.parse(defaultCSV, { header: false });
     const [headerRow, ...dataRows] = result.data;
     setHeaders(headerRow);
     setTableData(dataRows);
   };
+
   const handleCellChange = (rowIndex, colIndex, value) => {
     const updatedTableData = [...tableData];
     updatedTableData[rowIndex][colIndex] = value;
     setTableData(updatedTableData);
+    if (!hasUnsavedChanges) {
+      setHasUnsavedChanges(true);
+      setShowUnsavedChangesPopup(true);
+    }
   };
 
   const handlePublishClick = async () => {
@@ -141,6 +265,11 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     } else {
       setIsModalOpen(true);
     }
+  };
+
+  const handleRepublish = async () => {
+    setIsRepublishModalOpen(false);
+    await handlePublish();
   };
 
   const handleCloseModal = () => {
@@ -156,43 +285,46 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
 
   const generateHTMLContent = (imageDataURL) => {
     return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Energy Sources by Country</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        #chart-container {
-            background-color: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            max-width: 100%;
-            max-height: 100vh;
-        }
-        img {
-            max-width: 100%;
-            height: auto;
-        }
-    </style>
-</head>
-<body>
-    <div id="chart-container">
-        <img src="${imageDataURL}" alt="Energy Sources by Country Chart" />
-    </div>
-</body>
-</html>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Energy Sources by Country</title>
+      <style>
+          body {
+              font-family: 'Arial', sans-serif;
+              margin: 0;
+              padding: 0;
+              background-color: #f4f4f4;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+          }
+          #chart-container {
+              background-color: white;
+              border-radius: 8px;
+              padding: 20px;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              max-width: 100%;
+              max-height: 100vh;
+              text-align: center;
+          }
+          img {
+              max-width: 100%;
+              height: auto;
+              display: block;
+              margin: 0 auto;
+          }
+      </style>
+  </head>
+  <body>
+      <div id="chart-container">
+          <img src="${imageDataURL}" alt="Energy Sources by Country Chart" />
+      </div>
+  </body>
+  </html>
     `;
   };
 
@@ -217,12 +349,29 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Chart Representation</title>
             <style>
-              body { margin: 0; padding: 0; }
+              html, body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                justify-content: flex-start;
+                align-items: center;
+                background-color: #f4f4f4;
+              }
+              .chart-container {
+                background-color: white;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                margin-left: 5%;
+              }
               .pixel-row { position: relative; height: 1px; }
               .pixel-group { position: absolute; height: 1px; }
             </style>
           </head>
           <body>
+            <div class="chart-container">
         `;
   
         for (let y = 0; y < canvas.height; y++) {
@@ -259,6 +408,7 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         }
   
         html += `
+            </div>
           </body>
           </html>
         `;
@@ -268,45 +418,53 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
       img.src = imageDataURL;
     });
   };
-  const updateHTMLFileOnServer = async (htmlContent) => {
+  const updateHTMLFileOnServer = async (htmlContent, forceUpdate = false) => {
     try {
+      console.log('Updating HTML file on server...');
+  
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
         throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
       }
       const projectData = await projectResponse.json();
-
-      const { name, description } = projectData.project_data;
+  
+      const { name, description, project_status } = projectData.project_data;
       const dataContent = projectData.data_file;
-
+  
+      if (project_status === 'Published' && !forceUpdate) {
+        console.log('Project is already published. Skipping HTML update.');
+        return projectData;
+      }
+  
       const formData = new FormData();
       formData.append('id', projectId);
       formData.append('name', name);
       formData.append('description', description);
       
-      // Append the new HTML content
       const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
       formData.append('html_file', htmlBlob, '/demo.html');
       
-      // Append the existing data file
       const dataBlob = new Blob([atob(dataContent)], { type: 'text/csv' });
       formData.append('data_file', dataBlob, 'data.csv');
-
-      formData.append('project_status', 'Draft');
-
+  
+      formData.append('project_status', project_status);
+  
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
         body: formData,
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Server error response:', errorData);
         throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
       }
-
+  
       const result = await response.json();
       console.log('Update result:', result);
+      
+      localStorage.setItem(`htmlContent_${projectId}`, htmlContent);
+      
       return result;
     } catch (error) {
       console.error('Error updating HTML file on server:', error);
@@ -320,16 +478,14 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         throw new Error('No project ID available');
       }
   
-      // Fetch existing project details
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
         throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
       }
       const projectData = await projectResponse.json();
   
-      // Extract necessary data from project_data
       const { name, description } = projectData.project_data;
-      const htmlContent = projectData.html_file; // HTML file is directly in projectData
+      const htmlContent = projectData.html_file;
   
       if (!htmlContent) {
         throw new Error('HTML file is missing from the project data');
@@ -340,11 +496,9 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
       formData.append('name', name);
       formData.append('description', description);
       
-      // Append the existing HTML file without modification
       const htmlBlob = new Blob([atob(htmlContent)], { type: 'text/html' });
       formData.append('html_file', htmlBlob, '/demo.html');
       
-      // Append the new CSV data
       formData.append('data_file', new Blob([csvContent], { type: 'text/csv' }), 'data.csv');
       formData.append('project_status', 'Draft');
   
@@ -368,11 +522,8 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
     }
   };
 
-
-  
   const updateProjectStatus = async (projectId) => {
     try {
-      // Fetch existing project details
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
         throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
@@ -381,36 +532,27 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
   
       console.log('Fetched project data:', projectData);
   
-      // Extract name, description, HTML content, and data content from project_data
       const projectName = projectData.project_data.name;
       const projectDescription = projectData.project_data.description;
-      const htmlContent = projectData.html_file; // HTML file is directly in projectData
-      const dataContent = projectData.data_file; // Data file is directly in projectData
+      const htmlContent = projectData.html_file;
+      const dataContent = projectData.data_file;
   
       if (!htmlContent) {
         throw new Error('HTML file is missing from the project data');
       }
   
-      // Create FormData object
       const formData = new FormData();
       formData.append('id', projectId);
       formData.append('name', projectName);
       formData.append('description', projectDescription);
       
-      // Append HTML file
       const htmlBlob = new Blob([atob(htmlContent)], { type: 'text/html' });
       formData.append('html_file', htmlBlob, '/demo.html');
       
-      // Append data file
       const dataBlob = new Blob([atob(dataContent)], { type: 'text/csv' });
       formData.append('data_file', dataBlob, 'data.csv');
       
       formData.append('project_status', 'Published');
-  
-      // Log the formData
-      for (let pair of formData.entries()) {
-        console.log(pair[0] + ': ' + (pair[1] instanceof Blob ? 'Blob data' : pair[1]));
-      }
   
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
@@ -426,7 +568,6 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
       const result = await response.json();
       console.log('Update result:', result);
   
-      // Combine the result with the original project data
       return {
         ...result,
         name: projectName,
@@ -448,36 +589,52 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
       
       const imageDataURL = canvas.toDataURL("image/png");
 
-      // Convert image to HTML
+      setHasUnsavedChanges(false);
+  
+      // Convert the image to HTML
       const htmlContent = await convertImageToHTML(imageDataURL);
-
-      // Update the HTML file on the server
+  
       if (projectId) {
-        await updateHTMLFileOnServer(htmlContent);
-      }
-
-      if (projectId) {
+        // Store the new HTML content locally
+        localStorage.setItem(`htmlContent_${projectId}`, htmlContent);
+        // Store the current table data and headers
+        localStorage.setItem(`tableData_${projectId}`, JSON.stringify(tableData));
+        localStorage.setItem(`headers_${projectId}`, JSON.stringify(headers));
+        // Store the image URL
+        localStorage.setItem(`publishedImageURL_${projectId}`, imageDataURL);
+  
+        // Update the HTML file on the server, force update if republishing
+        await updateHTMLFileOnServer(htmlContent, isPublished);
+        
         const updateResult = await updateProjectStatus(projectId);
         
         console.log('Update result:', updateResult);
-
+  
         if (updateResult && updateResult.name && updateResult.description) {
           console.log('Updated project details:', updateResult);
           if (updateResult.project_status === "Published") {
-            setDataPublished(true);
             setIsPublished(true);
             
-            // Construct the full embed URL with the domain
-            const fullEmbedURL = `http://dashboardtool.pythonanywhere.com${updateResult.embed_url}`;
+            let fullEmbedURL, fullScriptURL;
+  
+            if (updateResult.embed_url) {
+              fullEmbedURL = `http://dashboardtool.pythonanywhere.com${updateResult.embed_url}`;
+              fullScriptURL = fullEmbedURL.replace('/embed/', '/script/');
+            } else {
+              console.warn('Published project missing embed URL, generating default');
+              fullEmbedURL = `http://dashboardtool.pythonanywhere.com/embed/${projectId}`;
+              fullScriptURL = `http://dashboardtool.pythonanywhere.com/script/${projectId}`;
+            }
+  
+            console.log('Setting embed URL:', fullEmbedURL);
+            console.log('Setting script URL:', fullScriptURL);
+  
             setEmbedURL(fullEmbedURL);
-            const fullScriptURL = `http://dashboardtool.pythonanywhere.com${updateResult.embed_url.replace('/embed/', '/script/')}`;
             setScriptURL(fullScriptURL);
             
-            console.log('Updated project details with full embed URL:', {
-              ...updateResult,
-              html_file: updateResult.html_file,
-              data_file: updateResult.data_file
-            });
+            localStorage.setItem(`embedURL_${projectId}`, fullEmbedURL);
+            localStorage.setItem(`scriptURL_${projectId}`, fullScriptURL);
+            localStorage.setItem(`isPublished_${projectId}`, 'true');
             
             setPublishedImageURL(imageDataURL);
             setIsPublishModalOpen(true);
@@ -494,40 +651,64 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         localStorage.setItem(`headers_null`, JSON.stringify(headers));
         alert("Project data saved locally.");
       }
-
+  
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error publishing project:', error);
       alert(`Failed to publish project: ${error.message}. Please check the console for more details.`);
     }
   };
-
-
   const handleDownloadImage = () => {
     const link = document.createElement("a");
     link.href = publishedImageURL;
     link.download = "chart.png";
     link.click();
   };
-  const generateEmbedURL = (projectId) => {
-    return `http://dashboardtool.pythonanywhere.com/embed/${projectId}`;
-  };
-  
 
   return (
     <div className="relative p-4">
       <div className="flex space-x-2 mb-4">
-        
       <button
-          className={`px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 ${
-            isPublished ? 'bg-green-500' : 'bg-primary'
-          }`}
-          onClick={handlePublishClick}
-        >
-          {isPublished ? 'Published' : 'Publish'}
-        </button>
+  className={`px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 ${
+    isPublished ? 'bg-green-500' : 'bg-primary'
+  }`}
+  onClick={handlePublishClick}
+>
+  {isPublished ? 'Published' : 'Publish'}
+</button>
+        {isPublished && (
+          <button
+            className="p-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+            onClick={() => setIsRepublishModalOpen(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="20px" height="20px">
+              <path d="M 15 3 C 12.031398 3 9.3028202 4.0834384 7.2070312 5.875 A 1.0001 1.0001 0 1 0 8.5058594 7.3945312 C 10.25407 5.9000929 12.516602 5 15 5 C 20.19656 5 24.450989 8.9379267 24.951172 14 L 22 14 L 26 20 L 30 14 L 26.949219 14 C 26.437925 7.8516588 21.277839 3 15 3 z M 4 10 L 0 16 L 3.0507812 16 C 3.562075 22.148341 8.7221607 27 15 27 C 17.968602 27 20.69718 25.916562 22.792969 24.125 A 1.0001 1.0001 0 1 0 21.494141 22.605469 C 19.74593 24.099907 17.483398 25 15 25 C 9.80344 25 5.5490109 21.062074 5.0488281 16 L 8 16 L 4 10 z"/>
+            </svg>
+          </button>
+        )}
       </div>
 
+    
+      {showUnsavedChangesPopup && !isPublished && (
+  <div className="fixed bottom-4 right-4 bg-white border border-yellow-400 rounded-lg shadow-lg w-80 p-4" role="alert">
+    <div className="flex justify-between items-start">
+      <div className="flex-1">
+        <p className="text-lg font-semibold text-yellow-700 mb-2">Unsaved Changes</p>
+        <p className="text-sm text-gray-600">Please publish your changes before leaving the page.</p>
+      </div>
+      <button
+        onClick={() => setShowUnsavedChangesPopup(false)}
+        className="text-gray-400 hover:text-gray-500 focus:outline-none"
+        aria-label="Close alert"
+      >
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    
+  </div>
+)}
       <div className="absolute top-0 right-0 m-4">
         <label
           htmlFor="file-upload"
@@ -543,6 +724,7 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
           onChange={handleFileChange}
         />
       </div>
+      
 
       {tableData.length > 0 && (
         <div id="chart" ref={chartRef}>
@@ -584,7 +766,7 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         </div>
       )}
 
-{isModalOpen && !isPublished && (
+      {isModalOpen && !isPublished && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <h2 className="text-lg font-medium text-gray-900">Publish Chart</h2>
@@ -649,15 +831,15 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         <textarea 
           value={embedType === 'iframe' 
             ? `<iframe src="${embedURL}" width="100%" height="400" frameborder="0"></iframe>`
-            : `<script src="${embedURL}"></script>`
+            : `<script src="${scriptURL}"></script>`
           }
           readOnly 
           className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 h-24"
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end space-x-2">
         <button
-          className="px-4 py-2 mr-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
           onClick={() => setIsPublishModalOpen(false)}
         >
           Close
@@ -668,10 +850,38 @@ South Africa,1308.656389,72.36667817,Sub-Saharan Africa`);
         >
           Download Image
         </button>
+        <button
+          className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark"
+          onClick={handleDownloadHTML}
+        >
+          Download HTML
+        </button>
       </div>
     </div>
   </div>
 )}
+       {isRepublishModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h2 className="text-lg font-medium text-gray-900">Republish Project</h2>
+            <p className="mt-2 text-sm text-gray-600">Do you want to republish the project again?</p>
+            <div className="mt-4 flex justify-end">
+              <button
+                className="px-4 py-2 mr-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+                onClick={() => setIsRepublishModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-dark"
+                onClick={handleRepublish}
+              >
+                Republish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

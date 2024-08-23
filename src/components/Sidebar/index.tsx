@@ -3,8 +3,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import SidebarLinkGroup from "./SidebarLinkGroup";
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -16,38 +21,51 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   const trigger = useRef<any>(null);
   const sidebar = useRef<any>(null);
 
-  let storedSidebarExpanded = "true";
-  const [sidebarExpanded, setSidebarExpanded] = useState(
-    storedSidebarExpanded === null ? false : storedSidebarExpanded === "true"
-  );
-
-  // New state for project creation popup
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [showPopup, setShowPopup] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [projectStatus, setProjectStatus] = useState("Draft");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
 
-  // Function to handle chart click
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/list/');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setProjects(data);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
   const handleChartClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setShowPopup(true);
   };
 
-  // Function to create project
   const createProject = async () => {
+    if (!newProjectName.trim() || !newProjectDescription.trim()) {
+      setErrorMessage('Please fill in both project name and description.');
+      setShowErrorPopup(true);
+      return;
+    }
+  
     try {
-      // Fetch the demo HTML content
       const htmlResponse = await fetch('/demo.html');
       const htmlContent = await htmlResponse.text();
-      
-      // Create a Blob from the HTML content
       const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
       
-      // Fetch the CSV data file
       const csvResponse = await fetch('/Data.csv');
       const csvContent = await csvResponse.text();
-      
-      // Create a Blob from the CSV content
       const csvBlob = new Blob([csvContent], { type: 'text/csv' });
       
       const formData = new FormData();
@@ -64,25 +82,34 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response:', errorData);
         throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
       }
       
       const result = await response.json();
       console.log('Project created:', result);
       
-      // Clear the form and close the popup
+      // Add the new project to the projects list
+      const newProject: Project = {
+        id: result.id,
+        name: newProjectName,
+        description: newProjectDescription
+      };
+      setProjects(prevProjects => [...prevProjects, newProject]);
+      
       setNewProjectName("");
       setNewProjectDescription("");
       setProjectStatus("Draft");
       setShowPopup(false);
+  
+      // Refresh the page
+      window.location.reload();
     } catch (error) {
       console.error('Error creating project:', error);
+      setErrorMessage('An error occurred while creating the project. Please try again.');
+      setShowErrorPopup(true);
     }
   };
 
-
-  // close on click outside
   useEffect(() => {
     const clickHandler = ({ target }: MouseEvent) => {
       if (!sidebar.current || !trigger.current) return;
@@ -98,7 +125,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
     return () => document.removeEventListener("click", clickHandler);
   });
 
-  // close if the esc key is pressed
   useEffect(() => {
     const keyHandler = ({ key }: KeyboardEvent) => {
       if (!sidebarOpen || key !== "Escape") return;
@@ -798,46 +824,71 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
         </nav>
         {/* <!-- Sidebar Menu --> */}
       </div>
+     
       </aside>
 
      {/* Project Creation Popup */}
      {showPopup && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">Create New Project</h2>
-          <input
-            type="text"
-            placeholder="Project Name"
-            className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-          />
-          <textarea
-            placeholder="Project Description"
-            className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
-            value={newProjectDescription}
-            onChange={(e) => setNewProjectDescription(e.target.value)}
-          ></textarea>
-         
-          <div className="flex justify-end">
-            <button
-              className="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mr-4"
-              onClick={createProject}
-            >
-              Create
-            </button>
-            <button
-              className="px-6 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-              onClick={() => setShowPopup(false)}
-            >
-              Cancel
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Create New Project</h2>
+            <input
+              type="text"
+              placeholder="Project Name"
+              className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+            />
+            <textarea
+              placeholder="Project Description"
+              className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32"
+              value={newProjectDescription}
+              onChange={(e) => setNewProjectDescription(e.target.value)}
+            ></textarea>
+           
+            <div className="flex justify-end">
+              <button
+                className="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mr-4"
+                onClick={createProject}
+              >
+                Create
+              </button>
+              <button
+                className="px-6 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                onClick={() => setShowPopup(false)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
-  </>
-);
+      )}
+
+      {/* Error Popup */}
+      {showErrorPopup && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full relative">
+      <button
+        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+        onClick={() => setShowErrorPopup(false)}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
+      <p className="mb-6 text-gray-700">{errorMessage}</p>
+      <button
+        className="w-full p-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+        onClick={() => setShowErrorPopup(false)}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
+    </>
+  );
 };
 
 export default Sidebar;

@@ -15,6 +15,10 @@ const Dashboard: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectCharts, setProjectCharts] = useState({});
   const router = useRouter();
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const projectsPerPage = 9;
 
   const fetchProjects = async () => {
     try {
@@ -26,7 +30,6 @@ const Dashboard: React.FC = () => {
       setProjects(data);
       setFilteredProjects(data);
       
-      // Load saved chart selections from localStorage
       const savedCharts = JSON.parse(localStorage.getItem('projectCharts') || '{}');
       setProjectCharts(savedCharts);
     } catch (error) {
@@ -51,7 +54,19 @@ const Dashboard: React.FC = () => {
     setFilteredProjects(filtered);
   }, [filter, searchQuery, projects]);
 
+  const indexOfLastProject = currentPage * projectsPerPage;
+  const indexOfFirstProject = indexOfLastProject - projectsPerPage;
+  const currentProjects = filteredProjects.slice(indexOfFirstProject, indexOfLastProject);
+
+  const paginate = (pageNumber: React.SetStateAction<number>) => setCurrentPage(pageNumber);
+
   const createProject = async () => {
+    if (!newProjectName.trim() || !newProjectDescription.trim()) {
+      setErrorMessage('Please fill in both project name and description.');
+      setShowErrorPopup(true);
+      return;
+    }
+
     try {
       const htmlResponse = await fetch('/demo.html');
       const htmlContent = await htmlResponse.text();
@@ -81,23 +96,22 @@ const Dashboard: React.FC = () => {
       const result = await response.json();
       console.log('Project created:', result);
       
-      // Refresh the project list
       await fetchProjects();
       
-      // Find the newly created project in the updated list
       const newProject = projects.find(p => p.id === result.id);
       
       setNewProjectName("");
       setNewProjectDescription("");
       setProjectStatus("Draft");
       
-      // Open the chart selection popup for the new project
       if (newProject) {
         setSelectedProject(newProject);
         setShowPopup(true);
       }
     } catch (error) {
       console.error('Error creating project:', error);
+      setErrorMessage('An error occurred while creating the project. Please try again.');
+      setShowErrorPopup(true);
     }
   };
 
@@ -115,10 +129,8 @@ const Dashboard: React.FC = () => {
       const result = await response.json();
       console.log('Delete result:', result);
 
-      // Refresh the project list
       await fetchProjects();
       
-      // Remove the chart selection for the deleted project
       const updatedCharts = { ...projectCharts };
       delete updatedCharts[id];
       setProjectCharts(updatedCharts);
@@ -128,7 +140,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const openPopup = (project) => {
+  const openPopup = (project: React.SetStateAction<null>) => {
     const projectChart = projectCharts[project.id];
     if (projectChart && projectChart.specificType) {
       router.push(`/forms/${projectChart.specificType}?projectId=${project.id}`);
@@ -165,7 +177,35 @@ const Dashboard: React.FC = () => {
     };
     setProjectCharts(updatedCharts);
     localStorage.setItem('projectCharts', JSON.stringify(updatedCharts));
-    router.push(`/forms/form-elements?projectId=${projectId}&chartType=${generalType}`);
+  
+    let route;
+    switch (generalType) {
+      case 'bar-chart':
+        route = `/forms/form-elements`;
+        break;
+      case 'pie-chart':
+        route = `/forms/form-layout`;
+        break;
+      case 'line-chart':
+        route = `/forms/line-chartTypes`;
+        break;
+      case 'column-line-chart':
+        route = `/forms/column-line-chartTypes`;
+        break;
+      case 'area-chart':
+        route = `/forms/area-chartTypes`;
+        break;
+      case 'waterfall-chart':
+        route = `/forms/waterfall-chartTypes`;
+        break;
+      case 'maps':
+        route = `/forms/map-types`;
+        break;
+      default:
+        route = `/forms/chart-types`;
+    }
+  
+    router.push(`${route}?projectId=${projectId}&chartType=${generalType}`);
     closePopup();
   };
   return (
@@ -206,11 +246,27 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="col-span-6">
+        {showErrorPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Error</h2>
+            <p className="mb-4">{errorMessage}</p>
+            <button
+              className="w-full p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              onClick={() => setShowErrorPopup(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+
+<div className="col-span-6">
           <div className="p-4 border border-gray-300 rounded-md shadow-sm bg-white">
             <h2 className="text-lg font-semibold mb-2">My Projects</h2>
             <div className="grid grid-cols-3 gap-2">
-              {filteredProjects.map((project) => (
+              {currentProjects.map((project) => (
                 <div
                   key={project.id}
                   className="p-4 border border-gray-300 rounded-md shadow-sm bg-gray-100 flex flex-col justify-between items-center relative cursor-pointer"
@@ -232,6 +288,37 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 flex justify-center">
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button
+                  onClick={() => paginate(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                >
+                  <span className="sr-only">Previous</span>
+                  &#8592;
+                </button>
+                {Array.from({ length: Math.ceil(filteredProjects.length / projectsPerPage) }).map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => paginate(index + 1)}
+                    className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
+                      currentPage === index + 1 ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => paginate(currentPage + 1)}
+                  disabled={currentPage === Math.ceil(filteredProjects.length / projectsPerPage)}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                >
+                  <span className="sr-only">Next</span>
+                  &#8594;
+                </button>
+              </nav>
             </div>
           </div>
         </div>

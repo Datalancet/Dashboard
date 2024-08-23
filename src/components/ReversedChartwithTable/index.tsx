@@ -21,6 +21,8 @@ interface ReversedChartWithTableProps {
   seriesNames: string[];
   xAxisTitle: string;
   yAxisTitle: string;
+  logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  logoUrl: string;
 }
 
 const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
@@ -38,7 +40,9 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
   labelPosition,
   seriesNames,
   xAxisTitle,
-  yAxisTitle
+  yAxisTitle,
+  logoPosition,
+  logoUrl
 }) => {
   console.log("ReversedChartWithTable rendering");
 
@@ -63,6 +67,7 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
   const [tableData, setTableData] = useState<string[][]>(initialData.slice(1));
   const [headers, setHeaders] = useState<string[]>(initialData[0]);
   const [isDataReady, setIsDataReady] = useState<boolean>(false);
+  
 
   useEffect(() => {
     console.log("Initial data loaded");
@@ -83,6 +88,7 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
       lowCarbon: parseFloat(row[2])
     }));
   }, [tableData]);
+ 
 
   const categories = useMemo(() => chartData.map(item => item.category), [chartData]);
   const fossilFuelsData = useMemo(() => chartData.map(item => item.fossilFuels), [chartData]);
@@ -94,6 +100,8 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
     return <div>Loading...</div>;
   }
 
+ 
+ 
   return (
     <div>
       <div id="chart">
@@ -107,11 +115,15 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
             yAxisTitle={yAxisTitle}
             sourceName={sourceName}
             sourceURL={sourceURL}
+            logoPosition={logoPosition} 
+            logoUrl={logoUrl}
+            showLogo={true} 
           />
         ) : (
           <div>No data available for chart</div>
         )}
       </div>
+      
       <DataTable headers={headers} data={tableData} onDataChange={handleDataChange} />
     </div>
   );

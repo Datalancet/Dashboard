@@ -12,6 +12,9 @@ interface ReversedBarProps {
   yAxisTitle: string;
   sourceName: string;
   sourceURL: string;
+  logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  showLogo: boolean;
+  logoUrl: string;
 }
 
 const ReversedBar: React.FC<ReversedBarProps> = ({
@@ -23,7 +26,32 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
   yAxisTitle,
   sourceName,
   sourceURL,
+  logoPosition = 'top-right',
+  logoUrl = '/favicon.ico',
+  showLogo = true
 }) => {
+
+  const getLogoStyle = (position: string) => {
+    const base = {
+      position: 'absolute',
+      width: '20px',
+      height: '20px',
+    };
+    switch (position) {
+      case 'top-right':
+        return { ...base, top: '-20px', right: '-20px' };
+      case 'top-left':
+        return { ...base, top: '-20px', left: '-20px' };
+      case 'bottom-right':
+        return { ...base, bottom: '20px', right: '-20px' };
+      case 'bottom-left':
+        return { ...base, bottom: '20px', left: '-20px' };
+      default:
+        return { ...base, top: '10px', right: '10px' };
+    }
+  };
+
+  const logoStyle = getLogoStyle(logoPosition);
   const reversedCategories = useMemo(() => {
     return [...categories].reverse();
   }, [categories]);
@@ -112,7 +140,7 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
         }
       }],
     },
-  }), [reversedCategories, color, chartTitle, xAxisTitle, yAxisTitle, sourceName, sourceURL]);
+  }), [reversedCategories, color, chartTitle, xAxisTitle, yAxisTitle, sourceName, sourceURL,logoPosition]);
 
   const series = useMemo(() => [{
     data: [...data].map(value => -Math.abs(value))  // Make all values negative
@@ -120,6 +148,7 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
+       <div style={{ position: 'relative' }}>
       <div id="ReversedBar" className="-mb-9 -ml-5">
         <ReactApexChart
           options={options}
@@ -128,6 +157,14 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
           height={350}
           width={"100%"}
         />
+      </div>
+      {showLogo && (
+          <img 
+            src={logoUrl}
+            alt="Logo" 
+            style={logoStyle as React.CSSProperties}
+          />
+        )}
       </div>
     </div>
   );

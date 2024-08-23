@@ -22,6 +22,8 @@ interface GroupedChartWithTableProps {
   seriesNames: string[];
   xAxisTitle: string;
   yAxisTitle: string;
+  logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  logoUrl: string;
 }
 
 const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
@@ -39,7 +41,9 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
   labelPosition,
   xAxisTitle,
   yAxisTitle,
-  seriesNames
+  seriesNames,
+  logoPosition,
+  logoUrl
 }) => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') || 'default';
@@ -47,6 +51,8 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
 
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
+  const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>('none');
+  const [aggregatedData, setAggregatedData] = useState<any[]>([]);
 
   // Example data for initial chart rendering
   const initialData = [
@@ -80,6 +86,10 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
       setTableData(initialData.slice(1));
     }
   }, [projectId, chartType]);
+  useEffect(() => {
+    aggregateData();
+  }, [tableData, aggregationMethod]);
+
 
   const handleDataChange = (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
@@ -93,6 +103,41 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
   console.log("GroupedChartWithTable received title:", chartTitle);
   console.log("GroupedChartWithTable - Source Name:", sourceName);
   console.log("GroupedChartWithTable - Source URL:", sourceURL);
+
+  const handleAggregationMethodChange = (method: 'none' | 'sum' | 'count') => {
+    setAggregationMethod(method);
+  };
+
+
+  const aggregateData = () => {
+    if (aggregationMethod === 'none') {
+      setAggregatedData(tableData);
+      return;
+    }
+
+    const aggregated = tableData.reduce((acc, curr) => {
+      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
+      if (existingIndex > -1) {
+        if (aggregationMethod === 'sum') {
+          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
+          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + parseFloat(curr[2])).toString();
+        } else if (aggregationMethod === 'count') {
+          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
+          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + 1).toString();
+        }
+      } else {
+        if (aggregationMethod === 'count') {
+          acc.push([curr[0], '1', '1', curr[3], curr[4]]);
+        } else {
+          acc.push(curr);
+        }
+      }
+      return acc;
+    }, []);
+
+    setAggregatedData(aggregated);
+  }; 
+
 
   return (
     <div>
@@ -115,7 +160,23 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
           seriesNames={seriesNames}
           xAxisTitle={xAxisTitle}
           yAxisTitle={yAxisTitle}
+          logoPosition={logoPosition} 
+          logoUrl={logoUrl}
+          showLogo={true} 
         />
+      </div>
+      <div className="mt-4 mb-4">
+        <label htmlFor="aggregation-method" className="mr-2">Aggregation Method:</label>
+        <select
+          id="aggregation-method"
+          value={aggregationMethod}
+          onChange={(e) => handleAggregationMethodChange(e.target.value as 'none' | 'sum' | 'count')}
+          className="p-2 border rounded"
+        >
+          <option value="none">None</option>
+          <option value="sum">Sum</option>
+          <option value="count">Count</option>
+        </select>
       </div>
       <DataTable onDataChange={handleDataChange} projectId={projectId} chartType={chartType} />
     </div>
