@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import DataTable from "@/components/DataTable/index";
 import ReversedBar from "../Charts/ReversedBar";
 import html2canvas from "html2canvas";
+import Papa from "papaparse";
 
 interface ReversedChartWithTableProps {
   design: string;
@@ -23,6 +24,7 @@ interface ReversedChartWithTableProps {
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  projectId:string;
 }
 
 const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
@@ -41,6 +43,7 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
   seriesNames,
   xAxisTitle,
   yAxisTitle,
+  projectId,
   logoPosition,
   logoUrl
 }) => {
@@ -74,10 +77,72 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
     setIsDataReady(true);
   }, []);
 
-  const handleDataChange = (newHeaders: string[], newData: string[][]) => {
-    console.log("Data changed:", newHeaders, newData);
+  const updateDataFileOnServer = async (csvContent) => {
+    try {
+      if (!projectId) {
+        throw new Error('No project ID available');
+      }
+  
+      // Fetch current project details
+      const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
+      if (!projectResponse.ok) {
+        throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
+      }
+      const projectData = await projectResponse.json();
+  
+      const { name, description, project_status } = projectData.project_data;
+      const htmlContent = projectData.html_file;
+  
+      const formData = new FormData();
+      formData.append('id', projectId);
+      formData.append('name', name);
+      formData.append('description', description);
+      
+      const htmlBlob = new Blob([atob(htmlContent)], { type: 'text/html' });
+      formData.append('html_file', htmlBlob, '/demo.html');
+      
+      formData.append('data_file', new Blob([csvContent], { type: 'text/csv' }), 'data.csv');
+      formData.append('project_status', project_status); // Preserve the current project status
+  
+      const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Server error response:', errorData);
+        throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
+      }
+  
+      const result = await response.json();
+      console.log('Update result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error updating data file on server:', error);
+      throw error;
+    }
+  };
+
+  const handleDataChange = async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
+  
+    // Save data to API
+    try {
+      if (!projectId) {
+        throw new Error('No project ID available');
+      }
+  
+      // Prepare CSV content
+      const csvContent = Papa.unparse([newHeaders, ...newData]);
+  
+      const result = await updateDataFileOnServer(csvContent);
+      console.log('Data saved successfully to API:', result);
+    } catch (error) {
+      console.error('Error saving data to API:', error);
+      // Handle error (e.g., show error message to user)
+    }
   };
 
   const chartData = useMemo(() => {
@@ -124,7 +189,7 @@ const ReversedChartWithTable: React.FC<ReversedChartWithTableProps> = ({
         )}
       </div>
       
-      <DataTable headers={headers} data={tableData} onDataChange={handleDataChange} />
+      <DataTable headers={headers} data={tableData} projectId={projectId}  onDataChange={handleDataChange} />
     </div>
   );
 };

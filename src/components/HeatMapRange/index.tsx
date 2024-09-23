@@ -1,0 +1,349 @@
+"use client"
+import React, { useState, useRef, useEffect, ChangeEvent } from "react";
+import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
+import HeatMapRangewithTable from "../HeatMapRangewithTable";
+import html2canvas from "html2canvas";
+import { useSearchParams } from 'next/navigation';
+
+const HeatMapRange = () => {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId') || 'default';
+  const chartType = 'HeatmapRange';
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [titleAlignment, setTitleAlignment] = useState(() => localStorage.getItem(`${projectId}_${chartType}_titleAlignment`) || "left");
+  const [sourceName, setSourceName] = useState(() => localStorage.getItem(`${projectId}_${chartType}_sourceName`) || "");
+  const [sourceURL, setSourceURL] = useState(() => localStorage.getItem(`${projectId}_${chartType}_sourceURL`) || "");
+  const [chartTitle, setChartTitle] = useState(() => localStorage.getItem(`${projectId}_${chartType}_chartTitle`) || "");
+  const [colorRanges, setColorRanges] = useState(() => {
+    const savedRanges = localStorage.getItem(`${projectId}_${chartType}_colorRanges`);
+    return savedRanges ? JSON.parse(savedRanges) : [];
+  });
+  const [xAxisTitle, setXAxisTitle] = useState(() => localStorage.getItem(`${projectId}_${chartType}_xAxisTitle`) || "X Axis");
+  const [yAxisTitle, setYAxisTitle] = useState(() => localStorage.getItem(`${projectId}_${chartType}_yAxisTitle`) || "Y Axis");
+  const [showLegend, setShowLegend] = useState(() => localStorage.getItem(`${projectId}_${chartType}_showLegend`) === 'true');
+  const [reversedYAxis, setReversedYAxis] = useState(() => localStorage.getItem(`${projectId}_${chartType}_reversedYAxis`) === 'true');
+  const [cellRadius, setCellRadius] = useState(() => parseInt(localStorage.getItem(`${projectId}_${chartType}_cellRadius`) || "0"));
+
+  const [logoPosition, setLogoPosition] = useState<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'>(
+    () => (localStorage.getItem(`${projectId}_${chartType}_logoPosition`) as 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left') || 'top-right'
+  );
+  const [logoUrl, setLogoUrl] = useState(() => {
+    const savedLogoUrl = localStorage.getItem(`${projectId}_${chartType}_logoUrl`);
+    return savedLogoUrl || '/favicon.ico';
+  });
+
+  const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const newLogoUrl = e.target?.result as string;
+        setLogoUrl(newLogoUrl);
+        localStorage.setItem(`${projectId}_${chartType}_logoUrl`, newLogoUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(`${projectId}_${chartType}_titleAlignment`, titleAlignment);
+    localStorage.setItem(`${projectId}_${chartType}_sourceName`, sourceName);
+    localStorage.setItem(`${projectId}_${chartType}_sourceURL`, sourceURL);
+    localStorage.setItem(`${projectId}_${chartType}_chartTitle`, chartTitle);
+    localStorage.setItem(`${projectId}_${chartType}_colorRanges`, JSON.stringify(colorRanges));
+    localStorage.setItem(`${projectId}_${chartType}_xAxisTitle`, xAxisTitle);
+    localStorage.setItem(`${projectId}_${chartType}_yAxisTitle`, yAxisTitle);
+    localStorage.setItem(`${projectId}_${chartType}_showLegend`, showLegend.toString());
+    localStorage.setItem(`${projectId}_${chartType}_reversedYAxis`, reversedYAxis.toString());
+    localStorage.setItem(`${projectId}_${chartType}_cellRadius`, cellRadius.toString());
+    localStorage.setItem(`${projectId}_${chartType}_logoPosition`, logoPosition);
+    localStorage.setItem(`${projectId}_${chartType}_logoUrl`, logoUrl);
+  }, [titleAlignment, sourceName, sourceURL, chartTitle, colorRanges, xAxisTitle, yAxisTitle, showLegend, reversedYAxis, cellRadius, projectId, chartType, logoPosition, logoUrl]);
+
+  const handleTitleAlignmentChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setTitleAlignment(event.target.value as "left" | "center" | "right");
+  };
+
+  const handleSourceNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSourceName(event.target.value);
+  };
+
+  const handleSourceURLChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSourceURL(event.target.value);
+  };
+
+  const handleTitleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setChartTitle(event.target.value);
+  };
+
+  const handleColorRangeChange = (index: number, field: 'from' | 'to' | 'color', value: string) => {
+    const newColorRanges = [...colorRanges];
+    newColorRanges[index][field] = field === 'color' ? value : parseFloat(value);
+    setColorRanges(newColorRanges);
+  };
+
+  const handleAddColorRange = () => {
+    const lastRange = colorRanges[colorRanges.length - 1];
+    const newFrom = lastRange ? lastRange.to + 1 : 0;
+    const newTo = newFrom + 20;
+    const newColor = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+    setColorRanges([...colorRanges, { from: newFrom, to: newTo, color: newColor }]);
+  };
+
+  const handleRemoveColorRange = (index: number) => {
+    setColorRanges(colorRanges.filter((_, i) => i !== index));
+  };
+
+  const handleXAxisTitleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setXAxisTitle(event.target.value);
+  };
+
+  const handleYAxisTitleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setYAxisTitle(event.target.value);
+  };
+
+  const handleShowLegendChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setShowLegend(event.target.checked);
+  };
+
+  const handleReversedYAxisChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setReversedYAxis(event.target.checked);
+  };
+
+  const handleCellRadiusChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setCellRadius(parseInt(event.target.value));
+  };
+
+  const handleLogoPositionChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setLogoPosition(event.target.value as 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left');
+  };
+
+  const handlePublish = () => {
+    const chartElement = document.getElementById("chart");
+    if (chartElement) {
+      html2canvas(chartElement).then((canvas) => {
+        const link = document.createElement("a");
+        link.href = canvas.toDataURL("image/png");
+        link.download = "heatmap_range.png";
+        link.click();
+      });
+    }
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <Breadcrumb pageName="Heat Map Range" />
+      </div>
+      
+      <div className="flex">
+        <div className="w-3/4" ref={chartRef}>
+          <HeatMapRangewithTable
+            colorRanges={colorRanges}
+            titleAlignment={titleAlignment}
+            sourceName={sourceName}
+            sourceURL={sourceURL}
+            chartTitle={chartTitle}
+            projectId={projectId}
+            chartType={chartType}
+            xAxisTitle={xAxisTitle}
+            yAxisTitle={yAxisTitle}
+            showLegend={showLegend}
+            reversedYAxis={reversedYAxis}
+            cellRadius={cellRadius}
+            logoPosition={logoPosition}
+            logoUrl={logoUrl}
+          />
+        </div>
+        
+        <div className="w-1/4 pl-4">
+          <div className="mb-4">
+            <label htmlFor="x-axis-title" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              X-Axis Title
+            </label>
+            <input
+              id="x-axis-title"
+              type="text"
+              value={xAxisTitle}
+              onChange={handleXAxisTitleChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="y-axis-title" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Y-Axis Title
+            </label>
+            <input
+              id="y-axis-title"
+              type="text"
+              value={yAxisTitle}
+              onChange={handleYAxisTitleChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="logo-upload" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Upload Logo</label>
+            <input
+              id="logo-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-violet-50 file:text-violet-700
+                hover:file:bg-violet-100"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="logo-position" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Logo Position</label>
+            <select
+              id="logo-position"
+              value={logoPosition}
+              onChange={handleLogoPositionChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            >
+              <option value="top-right">Top Right</option>
+              <option value="top-left">Top Left</option>
+              <option value="bottom-right">Bottom Right</option>
+              <option value="bottom-left">Bottom Left</option>
+            </select>
+          </div>
+
+          <div className="mb-4">
+            <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Color Ranges</label>
+            {colorRanges.length === 0 ? (
+              <p className="text-sm text-gray-500 mb-2">No color ranges defined. Add a range to get started.</p>
+            ) : (
+              colorRanges.map((range, index) => (
+                <div key={index} className="flex items-center mb-2">
+                  <input
+                    type="number"
+                    value={range.from}
+                    onChange={(e) => handleColorRangeChange(index, 'from', e.target.value)}
+                    className="w-16 p-1 text-sm border border-gray-300 rounded-l-md"
+                  />
+                  <input
+                    type="number"
+                    value={range.to}
+                    onChange={(e) => handleColorRangeChange(index, 'to', e.target.value)}
+                    className="w-16 p-1 text-sm border-t border-b border-gray-300"
+                  />
+                  <input
+                    type="color"
+                    value={range.color}
+                    onChange={(e) => handleColorRangeChange(index, 'color', e.target.value)}
+                    className="w-8 p-1 text-sm border border-gray-300"
+                  />
+                  <button
+                    onClick={() => handleRemoveColorRange(index)}
+                    className="ml-2 text-gray-500 hover:text-red-700"
+                    aria-label={`Remove Range ${index + 1}`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              ))
+            )}
+            <button
+              onClick={handleAddColorRange}
+              className="mt-2 px-3 py-1 text-sm text-white bg-blue-500 rounded hover:bg-blue-600"
+            >
+              Add Range
+            </button>
+          </div>
+
+
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={showLegend}
+                onChange={handleShowLegendChange}
+                className="mr-2"
+              />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show Legend</span>
+            </label>
+          </div>
+
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={reversedYAxis}
+                onChange={handleReversedYAxisChange}
+                className="mr-2"
+              />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Reverse Y-Axis</span>
+            </label>
+          </div>
+
+        
+          <div className="mb-4">
+            <label htmlFor="chart-title" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Chart Title</label>
+            <input
+              id="chart-title"
+              type="text"
+              value={chartTitle}
+              onChange={handleTitleChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+              placeholder="Enter chart title"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="title-alignment" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Title Alignment</label>
+            <select
+              id="title-alignment"
+              value={titleAlignment}
+              onChange={handleTitleAlignmentChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="source-name" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Source Name</label>
+            <input
+              id="source-name"
+              type="text"
+              value={sourceName}
+              onChange={handleSourceNameChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="source-url" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Source URL</label>
+            <input
+              id="source-url"
+              type="text"
+              value={sourceURL}
+              onChange={handleSourceURLChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            />
+          </div>
+
+          
+        </div>
+      </div>
+
+     
+    </div>
+  );
+};
+
+export default HeatMapRange;

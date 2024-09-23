@@ -132,11 +132,7 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
             color: '#777',
             background: 'transparent',
           },
-          text: `Source: ${sourceName}${sourceURL ? ' - ' + sourceURL : ''}`.trim(),
-          position: 'left',
-          offsetX: 0,
-          offsetY: 320,
-          textAnchor: 'start',
+        
         }
       }],
     },
@@ -164,6 +160,30 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
             alt="Logo" 
             style={logoStyle as React.CSSProperties}
           />
+        )}
+         {(sourceName || sourceURL) && (
+          <div style={{
+            position: 'absolute',
+            bottom: '30px',
+            left: '20px',
+            fontSize: '10px',
+            color: '#777',
+            zIndex: 1,
+            maxWidth: '50%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {sourceName && <span>Source: {sourceName}</span>}
+            {sourceURL && (
+              <>
+                {sourceName && " - "}
+                <a href={sourceURL} target="_blank" rel="noopener noreferrer" style={{ color: '#0000EE' }}>
+                  {sourceURL}
+                </a>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

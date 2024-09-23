@@ -32,7 +32,7 @@ const AreaChartTypes = () => {
         <div className="flex flex-col gap-9">
           <div className="max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div onClick={() => saveChartType('area-chart')} className="cursor-pointer">
-              <img className="rounded-t-lg" src="/images/chart/area1.png" alt="Bar Chart" />
+              <img className="rounded-t-lg" src="/images/chart/area1.png" alt="Area Chart" />
             </div>
             <div className="p-5">
               <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -48,7 +48,7 @@ const AreaChartTypes = () => {
         <div className="flex flex-col gap-9">
           <div className="max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
             <div onClick={() => saveChartType('spline-areachart')} className="cursor-pointer">
-              <img className="rounded-t-lg" src="/images/chart/splinearea.png" alt="Bar Chart" />
+              <img className="rounded-t-lg" src="/images/chart/splinearea.png" alt="Spline Area Chart" />
             </div>
             <div className="p-5">
               <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -63,8 +63,8 @@ const AreaChartTypes = () => {
 
         <div className="flex flex-col gap-9">
           <div className="max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
-            <div onClick={() => saveChartType('area-chart')} className="cursor-pointer">
-              <img className="rounded-t-lg" src="/images/chart/steplinearea.png" alt="Bar Chart" />
+            <div onClick={() => saveChartType('steplinearea-chart')} className="cursor-pointer">
+              <img className="rounded-t-lg" src="/images/chart/steplinearea.png" alt="Stepline Area Chart" />
             </div>
             <div className="p-5">
               <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">

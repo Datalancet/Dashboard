@@ -481,7 +481,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                               />
                             </g>
                             </svg>
-                              Column & Line Chart
+                              Column Chart
                             </Link>
                           </li>
                           <li>
@@ -518,38 +518,42 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                             </Link>
                           </li>
                           <li>
-                            <Link
-                              href="/forms/form-layout"
-                              className={`group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white ${
-                                pathname === "/forms/form-layout" &&
-                                "text-white"
-                              } `}
-                              onClick={handleChartClick}
-                            >
-                              <svg
-                              className="fill-current"
-                              width="18"
-                              height="18"
-                              viewBox="0 0 18 18"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <g clipPath="url(#clip0_130_9801)">
-                                <path d="M2 16L6 12L10 14L14 8V16H2Z" fill="currentColor" />
-                                <path d="M14 8L18 6V16H14V8Z" fill="currentColor" />
-                                <path d="M2 16L6 14L10 12L14 6V16H2Z" fill="currentColor" />
-                                <path d="M2 16L6 12L10 14L14 8" fill="white" />
-                                <path
-                                  d="M2 16L6 12L10 14L14 8"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </g>
-                              </svg>
-                              Waterfall Chart
-                            </Link>
+                          <Link
+  href="/forms/form-layout"
+  className={`group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white ${
+    pathname === "/forms/form-layout" && "text-white"
+  } `}
+  onClick={handleChartClick}
+>
+  <svg
+    className="fill-current"
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <g>
+      <rect x="1" y="1" width="4" height="4" fill="currentColor" opacity="0.2" />
+      <rect x="5" y="1" width="4" height="4" fill="currentColor" opacity="0.4" />
+      <rect x="9" y="1" width="4" height="4" fill="currentColor" opacity="0.6" />
+      <rect x="13" y="1" width="4" height="4" fill="currentColor" opacity="0.8" />
+      <rect x="1" y="5" width="4" height="4" fill="currentColor" opacity="0.3" />
+      <rect x="5" y="5" width="4" height="4" fill="currentColor" opacity="0.5" />
+      <rect x="9" y="5" width="4" height="4" fill="currentColor" opacity="0.7" />
+      <rect x="13" y="5" width="4" height="4" fill="currentColor" opacity="0.9" />
+      <rect x="1" y="9" width="4" height="4" fill="currentColor" opacity="0.4" />
+      <rect x="5" y="9" width="4" height="4" fill="currentColor" opacity="0.6" />
+      <rect x="9" y="9" width="4" height="4" fill="currentColor" opacity="0.8" />
+      <rect x="13" y="9" width="4" height="4" fill="currentColor" />
+      <rect x="1" y="13" width="4" height="4" fill="currentColor" opacity="0.5" />
+      <rect x="5" y="13" width="4" height="4" fill="currentColor" opacity="0.7" />
+      <rect x="9" y="13" width="4" height="4" fill="currentColor" opacity="0.9" />
+      <rect x="13" y="13" width="4" height="4" fill="currentColor" />
+    </g>
+  </svg>
+  Heat Map
+</Link>
                           </li>
                         </ul>            
                     </div>
@@ -865,25 +869,33 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       )}
 
       {/* Error Popup */}
-      {showErrorPopup && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-    <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full relative">
+{showErrorPopup && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex justify-center items-center z-50">
+    <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 ease-out scale-100">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-gray-800">Error</h2>
+        <button
+          onClick={() => setShowErrorPopup(false)}
+          className="text-gray-400 hover:text-gray-600 transition duration-300 ease-in-out"
+          aria-label="Close"
+        >
+          
+        </button>
+      </div>
+      <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+        <p className="text-red-700">{errorMessage}</p>
+      </div>
       <button
-        className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-        onClick={() => setShowErrorPopup(false)}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
-      <p className="mb-6 text-gray-700">{errorMessage}</p>
-      <button
-        className="w-full p-2 bg-red-500 text-white rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-        onClick={() => setShowErrorPopup(false)}
-      >
-        Close
-      </button>
+  className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-md hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:scale-105"
+  onClick={() => setShowErrorPopup(false)}
+>
+  <span className="flex items-center justify-center">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+    </svg>
+    Close
+  </span>
+</button>
     </div>
   </div>
 )}
