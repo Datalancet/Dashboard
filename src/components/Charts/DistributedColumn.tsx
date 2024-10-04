@@ -24,7 +24,7 @@ interface DistributedColumnChartProps {
   showLogo: boolean;
   logoUrl: string;
   showPercentages: boolean;
-  seriesName: string; // Single series name for distributed chart
+  seriesNames: string[]; // Changed from seriesName to seriesNames
 }
 
 const DistributedColumnChart: React.FC<DistributedColumnChartProps> = ({ 
@@ -48,13 +48,27 @@ const DistributedColumnChart: React.FC<DistributedColumnChartProps> = ({
   logoUrl = '/favicon.ico',
   showPercentages,
   showLogo = true,
-  seriesName
+  seriesNames
 }) => {
-  const categories = tableData.map(row => row[0] as string);
-  const series = useMemo(() => [{
-    name: seriesName,
-    data: tableData.map(row => parseFloat(row[1] as string) || 0)
-  }], [seriesName, tableData]);
+  const chartData = useMemo(() => {
+    if (!tableData || tableData.length === 0 || headers.length < 2) {
+      return {
+        categories: [],
+        series: []
+      };
+    }
+
+    const categories = tableData.map(row => String(row[0]));
+    const series = [{
+      name: seriesNames[0] || headers[1],
+      data: tableData.map(row => {
+        const value = row[1];
+        return typeof value === 'number' ? value : parseFloat(value as string) || 0;
+      })
+    }];
+
+    return { categories, series };
+  }, [headers, tableData, seriesNames]);
 
   const getLogoStyle = (position: string) => {
     const base = {
@@ -110,7 +124,7 @@ const DistributedColumnChart: React.FC<DistributedColumnChartProps> = ({
       }
     },
     xaxis: {
-      categories: categories,
+      categories: chartData.categories,
       position: xAxisPosition as "top" | "bottom",
       title: {
         text: xAxisTitle,
@@ -140,7 +154,7 @@ const DistributedColumnChart: React.FC<DistributedColumnChartProps> = ({
     tooltip: {
       y: {
         formatter: function (val: number) {
-          return val.toFixed(2);
+          return showPercentages ? `${val.toFixed(1)}%` : val.toFixed(2);
         }
       }
     },
@@ -155,9 +169,13 @@ const DistributedColumnChart: React.FC<DistributedColumnChartProps> = ({
   }), [
     colors, design, gridVariation, xAxisPosition, yAxisPosition, titleAlignment, 
     valuesPosition, chartTitle, sourceName, sourceURL, xAxisTitle,
-    yAxisTitle, isLabelStyle, labelPosition, categories, logoPosition, showPercentages,
-    seriesName
+    yAxisTitle, isLabelStyle, labelPosition, chartData.categories, logoPosition, showPercentages,
+    seriesNames
   ]);
+
+  if (chartData.series.length === 0) {
+    return <div>No data available for the chart</div>;
+  }
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
@@ -165,7 +183,7 @@ const DistributedColumnChart: React.FC<DistributedColumnChartProps> = ({
         <div id="distributedColumnChart" className="-mb-9 -ml-5">
           <ReactApexChart
             options={options}
-            series={series}
+            series={chartData.series}
             type="bar"
             height={350}
             width={"100%"}

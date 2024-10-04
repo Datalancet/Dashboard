@@ -24,6 +24,8 @@ interface MonochromePieChartProps {
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   showLogo: boolean;
   logoUrl: string;
+  categoryColumn: string;
+  valueColumn: string;
 }
 
 const MonochromePieChart: React.FC<MonochromePieChartProps> = ({
@@ -44,8 +46,16 @@ const MonochromePieChart: React.FC<MonochromePieChartProps> = ({
   showPercentages,
   logoPosition = 'top-right',
   logoUrl = '/favicon.ico',
-  showLogo = true
+  showLogo = true,
+  categoryColumn,
+  valueColumn
 }) => {
+  const categoryIndex = headers.indexOf(categoryColumn);
+  const valueIndex = headers.indexOf(valueColumn);
+
+  const labels = useMemo(() => tableData.map(row => row[categoryIndex] as string), [tableData, categoryIndex]);
+  const values = useMemo(() => tableData.map(row => parseFloat(row[valueIndex] as string) || 0), [tableData, valueIndex]);
+
   const getLogoStyle = (position: string) => {
     const base = {
       position: 'absolute',
@@ -67,9 +77,6 @@ const MonochromePieChart: React.FC<MonochromePieChartProps> = ({
   };
 
   const logoStyle = getLogoStyle(logoPosition);
-
-  const labels = useMemo(() => tableData.map(row => row[0] as string), [tableData]);
-  const values = useMemo(() => tableData.map(row => parseFloat(row[1] as string) || 0), [tableData]);
 
  
   const options = useMemo(() => ({
@@ -129,7 +136,7 @@ const MonochromePieChart: React.FC<MonochromePieChartProps> = ({
         expandOnClick: true,
       },
     },
-  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, isDonut, showPercentages, logoPosition]);
+  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, isDonut, showPercentages, logoPosition,categoryColumn, valueColumn]);
 
   const series = useMemo(() => values, [values]);
 

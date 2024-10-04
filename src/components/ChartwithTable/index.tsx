@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DataTable from "@/components/DataTable/index";
 import ChartTwo from "@/components/Charts/ChartTwo";
 import Papa from "papaparse";
-import html2canvas from "html2canvas";
 
 interface ChartWithTableProps {
   design: string;
@@ -26,6 +25,10 @@ interface ChartWithTableProps {
   chartType: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
+  updateAvailableColumns: (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => void;
+  onAxisChange: (xAxis: string, yAxes: string[]) => void;
 }
 
 const ChartWithTable: React.FC<ChartWithTableProps> = ({
@@ -41,58 +44,37 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
   chartTitle,
   isLabelStyle,
   labelPosition,
+  seriesNames,
   xAxisTitle,
   yAxisTitle,
-  seriesNames,
   projectId,
   chartType,
   logoPosition,
-  logoUrl
+  logoUrl,
+  xAxisColumn,
+  yAxisColumns,
+  updateAvailableColumns,
+  onAxisChange
 }) => {
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>('none');
-  const [aggregatedData, setAggregatedData] = useState<any[]>([]);
 
-  // Example data for initial chart rendering
-  const initialData = [
-    ["Country", "Fossil fuels sources", "Low-carbon sources", "Region", ""],
-    ["China", 36222.58785, 7195.872996, "East Asia Pacific", ""],
-    ["Indonesia", 2068.531663, 182.877434, "East Asia Pacific", ""],
-    ["Russia", 7556.898861, 1133.111644, "Europe and Central Asia", ""],
-    ["Turkey", 1581.966414, 279.5225517, "Europe and Central Asia", ""],
-    ["Brazil", 1840.248858, 1529.716619, "Latin America and Caribbean", ""],
-    ["Mexico", 1657.604034, 216.0925264, "Latin America and Caribbean", ""],
-    ["Iran", 3333.616802, 52.55197211, "Middle East and North Africa", ""],
-    ["Egypt", 988.2385589, 65.66415167, "Middle East and North Africa", ""],
-    ["Canada", 2483.220204, 1366.680287, "North America", ""],
-    ["United States", 21016.76361, 4654.851322, "North America", ""],
-    ["India", 8814.637053, 948.8110477, "South Asia", ""],
-    ["Pakistan", 917.6985869, 152.0718743, "South Asia", ""],
-    ["South Africa", 1308.656389, 72.36667817, "Sub-Saharan Africa", ""]
-  ];
-
-  useEffect(() => {
-    aggregateData();
-  }, [aggregationMethod, tableData]);
-
-
-  const updateDataFileOnServer = async (csvContent) => {
+  const updateDataFileOnServer = useCallback(async (csvContent: string) => {
     try {
       if (!projectId) {
         throw new Error('No project ID available');
       }
-  
-      // Fetch current project details
+
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
         throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
       }
       const projectData = await projectResponse.json();
-  
+
       const { name, description, project_status } = projectData.project_data;
       const htmlContent = projectData.html_file;
-  
+
       const formData = new FormData();
       formData.append('id', projectId);
       formData.append('name', name);
@@ -102,19 +84,19 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
       formData.append('html_file', htmlBlob, '/demo.html');
       
       formData.append('data_file', new Blob([csvContent], { type: 'text/csv' }), 'data.csv');
-      formData.append('project_status', project_status); // Preserve the current project status
-  
+      formData.append('project_status', project_status);
+
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
         body: formData,
       });
-  
+
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Server error response:', errorData);
         throw new Error(`Server responded with ${response.status}: ${JSON.stringify(errorData)}`);
       }
-  
+
       const result = await response.json();
       console.log('Update result:', result);
       return result;
@@ -122,71 +104,104 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
       console.error('Error updating data file on server:', error);
       throw error;
     }
-  };
+  }, [projectId]);
 
-  const handleDataChange = async (newHeaders: string[], newData: any[]) => {
+  const handleDataChange = useCallback(async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
-  
-    // Save data to API
+
+    // Find default X and Y axes
+    let defaultX = '';
+    let defaultY: string[] = [];
+
+    // Find the first non-numeric column for X-axis
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => isNaN(Number(row[i])))) {
+        defaultX = newHeaders[i];
+        break;
+      }
+    }
+
+    // Find the first numeric column for Y-axis
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => !isNaN(Number(row[i])))) {
+        defaultY.push(newHeaders[i]);
+        break;
+      }
+    }
+
+    updateAvailableColumns(newHeaders, newData, defaultX, defaultY);
+
+    // Only call onAxisChange if xAxisColumn or yAxisColumns are not set
+    if (!xAxisColumn || yAxisColumns.length === 0) {
+      onAxisChange(defaultX, defaultY);
+    }
+
     try {
       if (!projectId) {
         throw new Error('No project ID available');
       }
-  
-      // Prepare CSV content
+
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
       const result = await updateDataFileOnServer(csvContent);
       console.log('Data saved successfully to API:', result);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
-  };
+  }, [projectId, updateAvailableColumns, updateDataFileOnServer, onAxisChange, xAxisColumn, yAxisColumns]);
 
-  const handleAggregationMethodChange = (method: 'none' | 'sum' | 'count') => {
-    setAggregationMethod(method);
-  };
-
-
-  const aggregateData = () => {
-    if (aggregationMethod === 'none') {
-      setAggregatedData(tableData);
-      return;
+  const aggregateData = useCallback(() => {
+    if (aggregationMethod === 'none' || !xAxisColumn || yAxisColumns.length === 0) {
+      return tableData.map(row => {
+        const newRow = [row[headers.indexOf(xAxisColumn)]];
+        yAxisColumns.forEach(col => newRow.push(row[headers.indexOf(col)]));
+        return newRow;
+      });
     }
 
-    const aggregated = tableData.reduce((acc, curr) => {
-      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
+    const xIndex = headers.indexOf(xAxisColumn);
+    const yIndices = yAxisColumns.map(col => headers.indexOf(col));
+
+    return tableData.reduce((acc, curr) => {
+      const key = curr[xIndex];
+      const existingIndex = acc.findIndex(item => item[0] === key);
+      
       if (existingIndex > -1) {
-        if (aggregationMethod === 'sum') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + parseFloat(curr[2])).toString();
-        } else if (aggregationMethod === 'count') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + 1).toString();
-        }
+        yIndices.forEach((yIndex, i) => {
+          if (aggregationMethod === 'sum') {
+            acc[existingIndex][i + 1] = (parseFloat(acc[existingIndex][i + 1]) + parseFloat(curr[yIndex])).toString();
+          } else if (aggregationMethod === 'count') {
+            acc[existingIndex][i + 1] = (parseFloat(acc[existingIndex][i + 1]) + 1).toString();
+          }
+        });
       } else {
         if (aggregationMethod === 'count') {
-          acc.push([curr[0], '1', '1', curr[3], curr[4]]);
+          acc.push([key, ...yIndices.map(() => '1')]);
         } else {
-          acc.push(curr);
+          acc.push([key, ...yIndices.map(yIndex => curr[yIndex])]);
         }
       }
       return acc;
     }, []);
+  }, [aggregationMethod, tableData, headers, xAxisColumn, yAxisColumns]);
 
-    setAggregatedData(aggregated);
-  }; 
+  const aggregatedData = useMemo(() => aggregateData(), [aggregateData]);
+
+  const chartData = useMemo(() => {
+    return {
+      headers: [xAxisColumn, ...yAxisColumns],
+      tableData: aggregatedData
+    };
+  }, [xAxisColumn, yAxisColumns, aggregatedData]);
 
   return (
     <div>
       <div id="chart">
         <ChartTwo
-          headers={headers}
-          tableData={tableData}
+          headers={chartData.headers}
+          tableData={chartData.tableData}
           design={design}
-          color={color === "custom" ? "yourCustomColor" : color}
+          color={color}
           gridVariation={gridVariation}
           xAxisPosition={xAxisPosition}
           yAxisPosition={yAxisPosition}
@@ -197,22 +212,20 @@ const ChartWithTable: React.FC<ChartWithTableProps> = ({
           labelPosition={labelPosition}
           sourceName={sourceName}
           sourceURL={sourceURL}
-          seriesNames={seriesNames}
+          seriesNames={seriesNames.length >= yAxisColumns.length ? seriesNames : yAxisColumns}
           xAxisTitle={xAxisTitle}
           yAxisTitle={yAxisTitle}
           logoPosition={logoPosition} 
           logoUrl={logoUrl}
-          showLogo={true} />
-      </div>
-      <div className="mt-4 mb-4">
-        
+          showLogo={true}
+        />
       </div>
       <div className="mt-4 mb-4">
         <label htmlFor="aggregation-method" className="mr-2">Aggregation Method:</label>
         <select
           id="aggregation-method"
           value={aggregationMethod}
-          onChange={(e) => handleAggregationMethodChange(e.target.value as 'none' | 'sum' | 'count')}
+          onChange={(e) => setAggregationMethod(e.target.value as 'none' | 'sum' | 'count')}
           className="p-2 border rounded"
         >
           <option value="none">None</option>

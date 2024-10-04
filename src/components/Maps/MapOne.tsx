@@ -1,12 +1,10 @@
 "use client"
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import highchartsMap from 'highcharts/modules/map';
-import usaMap from '@highcharts/map-collection/countries/us/us-all.geo.json';
+import indiaMap from '@highcharts/map-collection/countries/in/custom/in-all-disputed.geo.json';
 
-// Initialize highchartsMap
 if (typeof Highcharts === 'object') {
   highchartsMap(Highcharts);
 }
@@ -20,7 +18,8 @@ interface MapOneProps {
   sourceURL: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
-  data: [string, number][]; 
+  data: any[][];
+  headers: string[];
 }
 
 const MapOne: React.FC<MapOneProps> = ({
@@ -32,25 +31,76 @@ const MapOne: React.FC<MapOneProps> = ({
   sourceURL,
   logoPosition,
   logoUrl,
- 
+  data,
+  headers,
 }) => {
-  const data = [
-    ['us-nd', 2.0], ['us-sd', 2.0], ['us-vt', 2.1], ['us-ne', 2.5], ['us-nh', 2.5],
-    ['us-md', 2.7], ['us-va', 2.7], ['us-ia', 2.8], ['us-mn', 2.8], ['us-ms', 2.8],
-    ['us-ks', 2.9], ['us-ut', 2.9], ['us-wi', 2.9], ['us-wy', 2.9], ['us-al', 3.0],
-    ['us-hi', 3.0], ['us-me', 3.0], ['us-ma', 3.0], ['us-tn', 3.0], ['us-mt', 3.1],
-    ['us-ga', 3.2], ['us-fl', 3.3], ['us-id', 3.3], ['us-az', 3.4], ['us-ar', 3.4],
-    ['us-pa', 3.4], ['us-sc', 3.4], ['us-mo', 3.5], ['us-ok', 3.5], ['us-nc', 3.6],
-    ['us-in', 3.7], ['us-co', 3.8], ['us-nm', 3.8], ['us-de', 3.9], ['us-mi', 3.9],
-    ['us-tx', 4.0], ['us-la', 4.1], ['us-ny', 4.2], ['us-oh', 4.2], ['us-or', 4.2],
-    ['us-wv', 4.2], ['us-ct', 4.3], ['us-ri', 4.3], ['us-ak', 4.5], ['us-ky', 4.6],
-    ['us-nj', 4.6], ['us-il', 4.9], ['us-wa', 4.9], ['us-nv', 5.1], ['us-ca', 5.2],
-    ['us-dc', 5.3]
-  ];
+  const [formattedData, setFormattedData] = useState<any[]>([]);
+  const [seriesName, setSeriesName] = useState<string>('Value');
+  const [minValue, setMinValue] = useState<number>(0);
+  const [maxValue, setMaxValue] = useState<number>(0);
 
-  const options = {
+  useEffect(() => {
+    formatData();
+  }, [data, headers]);
+
+  const formatData = () => {
+    if (data.length === 0 || headers.length === 0) return;
+
+    const stateCodeIndex = headers.findIndex(header => 
+      header.toLowerCase().includes('state') || header.toLowerCase().includes('code'));
+    const valueIndex = headers.findIndex(header => 
+      header.toLowerCase().includes('value') || header.toLowerCase().includes('population'));
+
+    if (stateCodeIndex === -1 || valueIndex === -1) {
+      console.error('Could not find state code or value columns');
+      return;
+    }
+
+    setSeriesName(headers[valueIndex]);
+
+    const formatted = data.reduce((acc, row) => {
+      const stateCode = row[stateCodeIndex];
+      const value = row[valueIndex];
+
+      if (stateCode && value !== undefined && value !== null) {
+        let formattedStateCode = String(stateCode).toLowerCase();
+        if (!formattedStateCode.startsWith('in-')) {
+          formattedStateCode = 'in-' + formattedStateCode;
+        }
+        
+        const numericValue = parseFloat(value);
+        if (!isNaN(numericValue)) {
+          acc.push([formattedStateCode, numericValue]);
+        }
+      }
+
+      return acc;
+    }, []);
+
+    if (formatted.length === 0) {
+      console.error('No valid data points after formatting');
+      return;
+    }
+
+    const values = formatted.map(item => item[1]);
+    setMinValue(Math.min(...values));
+    setMaxValue(Math.max(...values));
+    setFormattedData(formatted);
+  };
+
+  const getColorStops = (baseColor: string) => {
+    const lightenColor = Highcharts.color(baseColor).brighten(0.4).get();
+    const darkenColor = Highcharts.color(baseColor).brighten(-0.3).get();
+    return [
+      [0, lightenColor],
+      [0.5, baseColor],
+      [1, darkenColor]
+    ];
+  };
+
+  const options: Highcharts.Options = {
     chart: {
-      map: usaMap,
+      map: indiaMap,
       height: '500px',
       style: {
         fontFamily: 'Arial, sans-serif'
@@ -74,28 +124,30 @@ const MapOne: React.FC<MapOneProps> = ({
       }
     },
     colorAxis: {
-      min: 2,
-      max: 5.5,
+      min: minValue,
+      max: maxValue,
       type: 'linear',
-      minColor: design === 'custom' ? Highcharts.color(color).brighten(0.4).get() : '#EEEEFF',
-      maxColor: design === 'custom' ? color : '#000022',
-      stops: [
-        [0, design === 'custom' ? Highcharts.color(color).brighten(0.4).get() : '#EEEEFF'],
-        [0.67, design === 'custom' ? Highcharts.color(color).brighten(0.2).get() : '#4444FF'],
-        [1, design === 'custom' ? color : '#000022']
+      stops: design === 'custom' ? getColorStops(color) : [
+        [0, '#EEEEFF'],
+        [0.5, '#4444FF'],
+        [1, '#000022']
       ]
     },
     series: [{
-      data: data,
-      name: 'State Data',
+      type: 'map',
+      name: seriesName,
+      data: formattedData,
       states: {
         hover: {
-          color: '#BADA55'
+          color: Highcharts.color(design === 'custom' ? color : '#4444FF').brighten(0.2).get()
         }
       },
       dataLabels: {
         enabled: true,
         format: '{point.name}'
+      },
+      tooltip: {
+        pointFormat: '{point.name}: {point.value:,.0f}'
       }
     }],
     credits: {
@@ -110,21 +162,21 @@ const MapOne: React.FC<MapOneProps> = ({
         options={options}
         constructorType={'mapChart'}
       />
-     {logoUrl && (
-  <img
-    src={logoUrl}
-    alt="Logo"
-    className={`absolute ${
-      logoPosition === 'top-right'
-        ? 'top-0 right-0'
-        : logoPosition === 'top-left'
-        ? 'top-0 left-0'
-        : logoPosition === 'bottom-right'
-        ? 'bottom-0 right-0'
-        : 'bottom-0 left-0'
-    } w-6 h-6 m-2`}
-  />
-)}
+      {logoUrl && (
+        <img
+          src={logoUrl}
+          alt="Logo"
+          className={`absolute ${
+            logoPosition === 'top-right'
+              ? 'top-0 right-0'
+              : logoPosition === 'top-left'
+              ? 'top-0 left-0'
+              : logoPosition === 'bottom-right'
+              ? 'bottom-0 right-0'
+              : 'bottom-0 left-0'
+          } w-6 h-6 m-2`}
+        />
+      )}
       {sourceURL && (
         <div className={`absolute bottom-0 ${titleAlignment === 'left' ? 'left-0' : titleAlignment === 'right' ? 'right-0' : 'left-1/2 transform -translate-x-1/2'} m-2`}>
           <a href={sourceURL} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">

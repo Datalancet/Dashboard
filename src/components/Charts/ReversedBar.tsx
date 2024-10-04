@@ -1,11 +1,13 @@
+"use client"
 import React, { useMemo } from "react";
 import dynamic from 'next/dynamic';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 interface ReversedBarProps {
-  categories: ReadonlyArray<string>;
-  data: ReadonlyArray<number>;
+  data: Array<Record<string, string | number>>;
+  xAxisColumn: string;
+  yAxisColumns: string[];
   color: string;
   chartTitle: string;
   xAxisTitle: string;
@@ -18,8 +20,9 @@ interface ReversedBarProps {
 }
 
 const ReversedBar: React.FC<ReversedBarProps> = ({
-  categories,
   data,
+  xAxisColumn,
+  yAxisColumns,
   color,
   chartTitle,
   xAxisTitle,
@@ -30,7 +33,6 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
   logoUrl = '/favicon.ico',
   showLogo = true
 }) => {
-
   const getLogoStyle = (position: string) => {
     const base = {
       position: 'absolute',
@@ -52,9 +54,15 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
   };
 
   const logoStyle = getLogoStyle(logoPosition);
-  const reversedCategories = useMemo(() => {
-    return [...categories].reverse();
-  }, [categories]);
+
+  const chartData = useMemo(() => {
+    const categories = data.map(item => item[xAxisColumn] as string).reverse();
+    const series = yAxisColumns.map(column => ({
+      name: column,
+      data: data.map(item => Number(item[column]) || 0).reverse()
+    }));
+    return { categories, series };
+  }, [data, xAxisColumn, yAxisColumns]);
 
   const options = useMemo(() => ({
     chart: {
@@ -85,9 +93,9 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
       },
       offsetX: 6,
     },
-    colors: [color],
+    colors: [color, ...Array(Math.max(0, yAxisColumns.length - 1)).fill("#3b82f6")],
     xaxis: {
-      categories: reversedCategories,
+      categories: chartData.categories,
       title: {
         text: xAxisTitle,
       },
@@ -101,7 +109,7 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
       title: {
         text: yAxisTitle,
       },
-      reversed: true,
+      reversed: false,
     },
     title: {
       text: chartTitle,
@@ -132,15 +140,10 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
             color: '#777',
             background: 'transparent',
           },
-        
         }
       }],
     },
-  }), [reversedCategories, color, chartTitle, xAxisTitle, yAxisTitle, sourceName, sourceURL,logoPosition]);
-
-  const series = useMemo(() => [{
-    data: [...data].map(value => -Math.abs(value))  // Make all values negative
-  }], [data]);
+  }), [chartData.categories, color, chartTitle, xAxisTitle, yAxisTitle, sourceName, sourceURL, yAxisColumns]);
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
@@ -148,7 +151,7 @@ const ReversedBar: React.FC<ReversedBarProps> = ({
       <div id="ReversedBar" className="-mb-9 -ml-5">
         <ReactApexChart
           options={options}
-          series={series}
+          series={chartData.series}
           type="bar"
           height={350}
           width={"100%"}

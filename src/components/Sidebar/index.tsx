@@ -52,6 +52,12 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
     setShowPopup(true);
   };
 
+
+  const handleMapClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowPopup(true);
+  };
+
   const createProject = async () => {
     if (!newProjectName.trim() || !newProjectDescription.trim()) {
       setErrorMessage('Please fill in both project name and description.');
@@ -265,17 +271,18 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                         }`}
                       >
                         <ul className="mb-5.5 mt-4 flex flex-col gap-2.5 pl-6">
-                          <li>
-                            <Link
-                              href="/map"
-                              className={`group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white ${
-                                pathname === "/map" && "text-white"
-                              }`}
-                            >
-                              Maps
-                            </Link>
-                          </li>
-                        </ul>
+                            <li>
+                              <Link
+                                href="/map"
+                                className={`group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white ${
+                                  pathname === "/map" && "text-white"
+                                }`}
+                                onClick={handleMapClick}
+                              >
+                                Maps
+                              </Link>
+                            </li>
+                          </ul>
                       </div>
                       {/* <!-- Dropdown Menu End --> */}
                     </React.Fragment>

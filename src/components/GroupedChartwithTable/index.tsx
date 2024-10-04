@@ -1,10 +1,6 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import DataTable from "@/components/DataTable/index";
 import GroupedBar from "../Charts/GroupedBar";
-import html2canvas from "html2canvas";
-import { useSearchParams } from 'next/navigation';
 import Papa from "papaparse";
 
 interface GroupedChartWithTableProps {
@@ -25,6 +21,12 @@ interface GroupedChartWithTableProps {
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
+  updateAvailableColumns: (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => void;
+  onAxisChange: (xAxis: string, yAxes: string[]) => void;
+  projectId: string;
+  chartType: string;
 }
 
 const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
@@ -44,53 +46,17 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
   yAxisTitle,
   seriesNames,
   logoPosition,
-  logoUrl
+  logoUrl,
+  xAxisColumn,
+  yAxisColumns,
+  updateAvailableColumns,
+  onAxisChange,
+  projectId,
+  chartType
 }) => {
-  const searchParams = useSearchParams();
-  const projectId = searchParams.get('projectId') || 'default';
-  const chartType = 'grouped-bar'; // This identifies the chart type
-
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>('none');
-  const [aggregatedData, setAggregatedData] = useState<any[]>([]);
-
-  // Example data for initial chart rendering
-  const initialData = [
-    ["Country", "Fossil fuels sources", "Low-carbon sources", "Region", ""],
-    ["China", 36222.58785, 7195.872996, "East Asia Pacific", ""],
-    ["Indonesia", 2068.531663, 182.877434, "East Asia Pacific", ""],
-    ["Russia", 7556.898861, 1133.111644, "Europe and Central Asia", ""],
-    ["Turkey", 1581.966414, 279.5225517, "Europe and Central Asia", ""],
-    ["Brazil", 1840.248858, 1529.716619, "Latin America and Caribbean", ""],
-    ["Mexico", 1657.604034, 216.0925264, "Latin America and Caribbean", ""],
-    ["Iran", 3333.616802, 52.55197211, "Middle East and North Africa", ""],
-    ["Egypt", 988.2385589, 65.66415167, "Middle East and North Africa", ""],
-    ["Canada", 2483.220204, 1366.680287, "North America", ""],
-    ["United States", 21016.76361, 4654.851322, "North America", ""],
-    ["India", 8814.637053, 948.8110477, "South Asia", ""],
-    ["Pakistan", 917.6985869, 152.0718743, "South Asia", ""],
-    ["South Africa", 1308.656389, 72.36667817, "Sub-Saharan Africa", ""]
-  ];
-
-  useEffect(() => {
-    // Load data from localStorage based on projectId and chartType
-    const storedHeaders = localStorage.getItem(`${projectId}_${chartType}_headers`);
-    const storedData = localStorage.getItem(`${projectId}_${chartType}_tableData`);
-
-    if (storedHeaders && storedData) {
-      setHeaders(JSON.parse(storedHeaders));
-      setTableData(JSON.parse(storedData));
-    } else if (tableData.length === 0) {
-      // Use initial data if no stored data is found
-      setHeaders(initialData[0]);
-      setTableData(initialData.slice(1));
-    }
-  }, [projectId, chartType]);
-  useEffect(() => {
-    aggregateData();
-  }, [tableData, aggregationMethod]);
-
 
   const updateDataFileOnServer = async (csvContent) => {
     try {
@@ -139,74 +105,90 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
     }
   };
 
-  const handleDataChange = async (newHeaders: string[], newData: any[]) => {
+  const handleDataChange = useCallback(async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
-  
-    // Save data to API
-    try {
-      if (!projectId) {
-        throw new Error('No project ID available');
+
+    // Find default X and Y axes
+    let defaultX = '';
+    let defaultY: string[] = [];
+
+    // Find the first non-numeric column for X-axis
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => isNaN(Number(row[i])))) {
+        defaultX = newHeaders[i];
+        break;
       }
-  
-      // Prepare CSV content
+    }
+
+    // Find the first two numeric columns for Y-axis
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => !isNaN(Number(row[i])))) {
+        defaultY.push(newHeaders[i]);
+        if (defaultY.length === 2) break;
+      }
+    }
+
+    updateAvailableColumns(newHeaders, newData, defaultX, defaultY);
+
+    // Only call onAxisChange if xAxisColumn or yAxisColumns are not set
+    if (!xAxisColumn || yAxisColumns.length === 0) {
+      onAxisChange(defaultX, defaultY);
+    }
+
+    try {
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
-      const result = await updateDataFileOnServer(csvContent);
-      console.log('Data saved successfully to API:', result);
+      await updateDataFileOnServer(csvContent);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
-  };
+  }, [updateAvailableColumns, updateDataFileOnServer, onAxisChange, xAxisColumn, yAxisColumns]);
 
-  console.log("GroupedChartWithTable received title:", chartTitle);
-  console.log("GroupedChartWithTable - Source Name:", sourceName);
-  console.log("GroupedChartWithTable - Source URL:", sourceURL);
-
-  const handleAggregationMethodChange = (method: 'none' | 'sum' | 'count') => {
-    setAggregationMethod(method);
-  };
-
-
-  const aggregateData = () => {
-    if (aggregationMethod === 'none') {
-      setAggregatedData(tableData);
-      return;
+  const aggregateData = useCallback(() => {
+    if (aggregationMethod === 'none' || !xAxisColumn || yAxisColumns.length === 0) {
+      return tableData;
     }
 
-    const aggregated = tableData.reduce((acc, curr) => {
-      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
+    const xIndex = headers.indexOf(xAxisColumn);
+    const yIndices = yAxisColumns.map(col => headers.indexOf(col));
+
+    return tableData.reduce((acc, curr) => {
+      const key = curr[xIndex];
+      const existingIndex = acc.findIndex(item => item[xIndex] === key);
+      
       if (existingIndex > -1) {
-        if (aggregationMethod === 'sum') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + parseFloat(curr[2])).toString();
-        } else if (aggregationMethod === 'count') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + 1).toString();
-        }
+        yIndices.forEach((yIndex) => {
+          if (aggregationMethod === 'sum') {
+            acc[existingIndex][yIndex] = (parseFloat(acc[existingIndex][yIndex]) + parseFloat(curr[yIndex])).toString();
+          } else if (aggregationMethod === 'count') {
+            acc[existingIndex][yIndex] = (parseFloat(acc[existingIndex][yIndex]) + 1).toString();
+          }
+        });
       } else {
         if (aggregationMethod === 'count') {
-          acc.push([curr[0], '1', '1', curr[3], curr[4]]);
+          const newRow = [...curr];
+          yIndices.forEach((yIndex) => {
+            newRow[yIndex] = '1';
+          });
+          acc.push(newRow);
         } else {
           acc.push(curr);
         }
       }
       return acc;
     }, []);
+  }, [aggregationMethod, tableData, headers, xAxisColumn, yAxisColumns]);
 
-    setAggregatedData(aggregated);
-  }; 
-
+  const chartData = aggregateData();
 
   return (
     <div>
       <div id="chart">
         <GroupedBar
           headers={headers}
-          tableData={tableData}
+          tableData={chartData}
           design={design}
-          color={color === "custom" ? "yourCustomColor" : color}
+          color={color}
           gridVariation={gridVariation}
           xAxisPosition={xAxisPosition}
           yAxisPosition={yAxisPosition}
@@ -222,7 +204,9 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
           yAxisTitle={yAxisTitle}
           logoPosition={logoPosition} 
           logoUrl={logoUrl}
-          showLogo={true} 
+          showLogo={true}
+          xAxisColumn={xAxisColumn}
+          yAxisColumns={yAxisColumns}
         />
       </div>
       <div className="mt-4 mb-4">
@@ -230,7 +214,7 @@ const GroupedChartWithTable: React.FC<GroupedChartWithTableProps> = ({
         <select
           id="aggregation-method"
           value={aggregationMethod}
-          onChange={(e) => handleAggregationMethodChange(e.target.value as 'none' | 'sum' | 'count')}
+          onChange={(e) => setAggregationMethod(e.target.value as 'none' | 'sum' | 'count')}
           className="p-2 border rounded"
         >
           <option value="none">None</option>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import DataTable from "@/components/DataTable/index";
 import SteplineChart from "../Charts/Stepline";
 import Papa from "papaparse";
@@ -20,6 +20,10 @@ interface SteplineChartWithTableProps {
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
+  updateAvailableColumns: (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => void;
+  onAxisChange: (xAxis: string, yAxes: string[]) => void;
 }
 
 const SteplineChartWithTable: React.FC<SteplineChartWithTableProps> = ({
@@ -36,48 +40,63 @@ const SteplineChartWithTable: React.FC<SteplineChartWithTableProps> = ({
   xAxisTitle,
   yAxisTitle,
   logoPosition,
-  logoUrl
+  logoUrl,
+  xAxisColumn,
+  yAxisColumns,
+  updateAvailableColumns,
+  onAxisChange
 }) => {
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>('none');
   const [aggregatedData, setAggregatedData] = useState<any[]>([]);
 
-
-  // Example data for initial line chart rendering
-  const initialData = [
-    ["Month", "Product One", "Product Two"],
-    ["Jan", 23, 30],
-    ["Feb", 11, 25],
-    ["Mar", 22, 36],
-    ["Apr", 27, 30],
-    ["May", 13, 45],
-    ["Jun", 22, 35],
-    ["Jul", 37, 64],
-    ["Aug", 21, 52],
-    ["Sep", 44, 59],
-    ["Oct", 22, 36],
-    ["Nov", 30, 39],
-    ["Dec", 45, 51],
-  ];
-
   useEffect(() => {
     const storedHeaders = localStorage.getItem(`${projectId}_${chartType}_headers`);
     const storedData = localStorage.getItem(`${projectId}_${chartType}_tableData`);
 
     if (storedHeaders && storedData) {
-      setHeaders(JSON.parse(storedHeaders));
-      setTableData(JSON.parse(storedData));
-    } else if (tableData.length === 0) {
-      setHeaders(initialData[0]);
-      setTableData(initialData.slice(1));
+      const parsedHeaders = JSON.parse(storedHeaders);
+      const parsedData = JSON.parse(storedData);
+      setHeaders(parsedHeaders);
+      setTableData(parsedData);
+      
+      // Auto-select default X and Y axes
+      selectDefaultAxes(parsedHeaders, parsedData);
     }
   }, [projectId, chartType]);
 
   useEffect(() => {
     aggregateData();
-  }, [tableData, aggregationMethod]);
+  }, [tableData, aggregationMethod, xAxisColumn, yAxisColumns]);
 
+  const selectDefaultAxes = (headers: string[], data: any[][]) => {
+    let defaultX = '';
+    let defaultY: string[] = [];
+
+    // Find the first non-numeric column for X-axis
+    for (let i = 0; i < headers.length; i++) {
+      if (data.every(row => isNaN(Number(row[i])))) {
+        defaultX = headers[i];
+        break;
+      }
+    }
+
+    // Find the first numeric column for Y-axis
+    for (let i = 0; i < headers.length; i++) {
+      if (data.every(row => !isNaN(Number(row[i])))) {
+        defaultY.push(headers[i]);
+        break;
+      }
+    }
+
+    // Update the axes only if they haven't been set before
+    if (!xAxisColumn && defaultX) {
+      onAxisChange(defaultX, defaultY);
+    }
+
+    updateAvailableColumns(headers, data, defaultX, defaultY);
+  };
 
   const updateDataFileOnServer = async (csvContent) => {
     try {
@@ -130,20 +149,19 @@ const SteplineChartWithTable: React.FC<SteplineChartWithTableProps> = ({
     setHeaders(newHeaders);
     setTableData(newData);
   
-    // Save data to API
+    // Auto-select default X and Y axes when data changes
+    selectDefaultAxes(newHeaders, newData);
+  
     try {
       if (!projectId) {
         throw new Error('No project ID available');
       }
   
-      // Prepare CSV content
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
       const result = await updateDataFileOnServer(csvContent);
       console.log('Data saved successfully to API:', result);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
   };
 
@@ -151,26 +169,32 @@ const SteplineChartWithTable: React.FC<SteplineChartWithTableProps> = ({
     setAggregationMethod(method);
   };
 
-
   const aggregateData = () => {
-    if (aggregationMethod === 'none') {
+    if (aggregationMethod === 'none' || !xAxisColumn || yAxisColumns.length === 0) {
       setAggregatedData(tableData);
       return;
     }
 
+    const xIndex = headers.indexOf(xAxisColumn);
+    const yIndices = yAxisColumns.map(col => headers.indexOf(col));
+
     const aggregated = tableData.reduce((acc, curr) => {
-      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
+      const key = curr[xIndex];
+      const existingIndex = acc.findIndex(item => item[xIndex] === key);
+      
       if (existingIndex > -1) {
-        if (aggregationMethod === 'sum') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + parseFloat(curr[2])).toString();
-        } else if (aggregationMethod === 'count') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + 1).toString();
-        }
+        yIndices.forEach((yIndex, i) => {
+          if (aggregationMethod === 'sum') {
+            acc[existingIndex][yIndex] = (parseFloat(acc[existingIndex][yIndex]) + parseFloat(curr[yIndex])).toString();
+          } else if (aggregationMethod === 'count') {
+            acc[existingIndex][yIndex] = (parseFloat(acc[existingIndex][yIndex]) + 1).toString();
+          }
+        });
       } else {
         if (aggregationMethod === 'count') {
-          acc.push([curr[0], '1', '1', curr[3], curr[4]]);
+          acc.push(headers.map((_, index) => 
+            yIndices.includes(index) ? '1' : curr[index]
+          ));
         } else {
           acc.push(curr);
         }
@@ -179,15 +203,24 @@ const SteplineChartWithTable: React.FC<SteplineChartWithTableProps> = ({
     }, []);
 
     setAggregatedData(aggregated);
-  }; 
+  };
 
+  const chartData = useMemo(() => {
+    return {
+      headers: [xAxisColumn, ...yAxisColumns],
+      tableData: aggregatedData.map(row => [
+        row[headers.indexOf(xAxisColumn)],
+        ...yAxisColumns.map(col => row[headers.indexOf(col)])
+      ])
+    };
+  }, [headers, aggregatedData, xAxisColumn, yAxisColumns]);
 
   return (
     <div>
       <div id="chart">
         <SteplineChart
-          headers={headers}
-          tableData={tableData}
+          headers={chartData.headers}
+          tableData={chartData.tableData}
           lineColors={lineColors}
           titleAlignment={titleAlignment}
           sourceName={sourceName}
@@ -220,7 +253,6 @@ const SteplineChartWithTable: React.FC<SteplineChartWithTableProps> = ({
         onDataChange={handleDataChange}
         projectId={projectId}
         chartType={chartType}
-        initialData={tableData.length === 0 ? initialData : undefined}
       />
     </div>
   );

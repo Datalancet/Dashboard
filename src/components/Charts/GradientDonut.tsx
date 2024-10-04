@@ -49,33 +49,31 @@ const GradientDonutChart: React.FC<GradientDonutChartProps> = ({
   const labels = tableData.map(row => row[0] as string);
   const values = tableData.map(row => parseFloat(row[1] as string) || 0);
 
-  const getLogoStyle = (position: string) => {
-    const base = {
+  const getLogoStyle = (position: string): React.CSSProperties => {
+    const base: React.CSSProperties = {
       position: 'absolute',
       width: '20px',
       height: '20px',
     };
     switch (position) {
-      case 'top-right':
-        return { ...base, top: '-20px', right: '-20px' };
-      case 'top-left':
-        return { ...base, top: '-20px', left: '-20px' };
-      case 'bottom-right':
-        return { ...base, bottom: '20px', right: '-20px' };
-      case 'bottom-left':
-        return { ...base, bottom: '20px', left: '-20px' };
-      default:
-        return { ...base, top: '10px', right: '10px' };
+      case 'top-right': return { ...base, top: '-20px', right: '-20px' };
+      case 'top-left': return { ...base, top: '-20px', left: '-20px' };
+      case 'bottom-right': return { ...base, bottom: '20px', right: '-20px' };
+      case 'bottom-left': return { ...base, bottom: '20px', left: '-20px' };
+      default: return { ...base, top: '10px', right: '10px' };
     }
   };
 
   const logoStyle = getLogoStyle(logoPosition);
 
- 
+  const formatValue = (val: string | number): string => {
+    const numVal = typeof val === 'string' ? parseFloat(val) : val;
+    return isNaN(numVal) ? '0' : numVal.toFixed(2);
+  };
 
   const options = useMemo(() => ({
     chart: {
-      type: isDonut ? 'donut' as const : 'pie' as const,
+      type: 'donut' as const,
       toolbar: { show: false },
       events: {
         mounted: (chart: any) => {
@@ -87,9 +85,10 @@ const GradientDonutChart: React.FC<GradientDonutChartProps> = ({
     labels: labels,
     dataLabels: {
       enabled: isLabelStyle,
-      formatter: function (val: number, opts: any) {
+      formatter: function (val: string | number, opts: any) {
         const label = opts.w.globals.labels[opts.seriesIndex];
-        return showPercentages ? `${label}: ${val.toFixed(1)}%` : label;
+        const formattedVal = formatValue(val);
+        return showPercentages ? `${label}: ${formattedVal}%` : label;
       },
     },
     title: {
@@ -98,63 +97,67 @@ const GradientDonutChart: React.FC<GradientDonutChartProps> = ({
       style: {
         fontSize: '18px',
         fontWeight: 'bold',
-        fontFamily: undefined,
+        fontFamily: 'Helvetica, Arial, sans-serif',
         color: '#263238'
       },
     },
-   
     fill: {
       type: 'gradient',
     },
     legend: {
       position: "bottom",
+      fontSize: '14px',
+      fontFamily: 'Helvetica, Arial, sans-serif',
+      labels: {
+        colors: '#263238'
+      },
     },
     tooltip: {
       y: {
-        formatter: function (val: number) {
-          return val.toFixed(2);
+        formatter: function (val: string | number) {
+          return formatValue(val);
         }
       }
-    },
-    annotations: {
-      texts: [{
-        x: '50%',
-        y: '105%',
-        text: `Source: ${sourceName}${sourceURL ? ' - ' + sourceURL : ''}`.trim(),
-        style: {
-          fontSize: '12px',
-          color: '#777',
-        },
-      }],
     },
     plotOptions: {
       pie: {
         donut: {
           size: `${donutSize}%`,
           labels: {
-            show: isDonut,
+            show: true,
             name: {
               show: true,
+              fontSize: '16px',
+              fontFamily: 'Helvetica, Arial, sans-serif',
+              color: '#263238',
             },
             value: {
               show: true,
-              formatter: function (val: number) {
-                return showPercentages ? val.toFixed(1) + "%" : val.toFixed(2);
+              fontSize: '14px',
+              fontFamily: 'Helvetica, Arial, sans-serif',
+              color: '#263238',
+              formatter: function (val: string | number) {
+                const formattedVal = formatValue(val);
+                return showPercentages ? formattedVal + "%" : formattedVal;
               }
             },
             total: {
               show: true,
               label: 'Total',
+              fontSize: '16px',
+              fontFamily: 'Helvetica, Arial, sans-serif',
+              color: '#263238',
               formatter: function (w: any) {
                 const total = w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0);
-                return showPercentages ? total.toFixed(1) + "%" : total.toFixed(2);
+                const formattedTotal = formatValue(total);
+                return showPercentages ? formattedTotal + "%" : formattedTotal;
               }
             }
           }
         },
         startAngle: startAngle,
         endAngle: endAngle,
-        expandOnClick: false,
+        expandOnClick: true,
       },
     },
     states: {
@@ -169,42 +172,30 @@ const GradientDonutChart: React.FC<GradientDonutChartProps> = ({
         }
       },
     },
-  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, sliceColors, showPercentages, isDonut, logoPosition]);
+  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, sliceColors, showPercentages, logoPosition]);
 
   const series = useMemo(() => values, [values]);
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
       <div style={{ position: 'relative' }}>
-      <div id="GradientDonut" className="-mb-9 -ml-5">
-        <ReactApexChart
-          options={{
-            ...options,
-            plotOptions: {
-              ...options.plotOptions,
-              donut: {
-                ...options.plotOptions.pie,
-                expandOnClick: true,
-                customScale: 1,
-                offsetX: explodedSlice !== -1 ? 20 : 0,
-                offsetY: explodedSlice !== -1 ? 20 : 0,
-              },
-            },
-          }}
-          series={series}
-          type="donut" 
-          height={350}
-          width={"100%"}
-        />
-      </div>
-      {showLogo && (
+        <div id="GradientDonut" className="-mb-9 -ml-5">
+          <ReactApexChart
+            options={options}
+            series={series}
+            type="donut"
+            height={350}
+            width={"100%"}
+          />
+        </div>
+        {showLogo && (
           <img 
             src={logoUrl}
             alt="Logo" 
             style={logoStyle}
           />
         )}
-         {(sourceName || sourceURL) && (
+        {(sourceName || sourceURL) && (
           <div style={{
             position: 'absolute',
             bottom: '30px',
@@ -228,7 +219,7 @@ const GradientDonutChart: React.FC<GradientDonutChartProps> = ({
             )}
           </div>
         )}
-        </div>
+      </div>
     </div>
   );
 };

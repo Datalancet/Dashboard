@@ -54,6 +54,22 @@ const DonutChart = () => {
     const savedLogoUrl = localStorage.getItem(`${projectId}_${chartType}_logoUrl`);
     return savedLogoUrl || '/favicon.ico';
   });
+
+  const [categoryColumn, setCategoryColumn] = useState(() => 
+    localStorage.getItem(`${projectId}_${chartType}_categoryColumn`) || ""
+  );
+  const [valueColumn, setValueColumn] = useState(() => 
+    localStorage.getItem(`${projectId}_${chartType}_valueColumn`) || ""
+  );
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [categoricalColumns, setCategoricalColumns] = useState<string[]>([]);
+  const [numericalColumns, setNumericalColumns] = useState<string[]>([]);
+
+  useEffect(() => {
+    localStorage.setItem(`${projectId}_${chartType}_categoryColumn`, categoryColumn);
+    localStorage.setItem(`${projectId}_${chartType}_valueColumn`, valueColumn);
+  }, [categoryColumn, valueColumn, projectId, chartType]);
+
   
   const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -208,6 +224,47 @@ const DonutChart = () => {
     setIsModalOpen(false);
   };
 
+  const handleCategoryColumnChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const newCategoryColumn = event.target.value;
+    setCategoryColumn(newCategoryColumn);
+    localStorage.setItem(`${projectId}_${chartType}_categoryColumn`, newCategoryColumn);
+  };
+
+  const handleValueColumnChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const newValueColumn = event.target.value;
+    setValueColumn(newValueColumn);
+    localStorage.setItem(`${projectId}_${chartType}_valueColumn`, newValueColumn);
+  };
+
+  const updateAvailableColumns = (headers: string[], data: any[][], defaultCategory: string, defaultValue: string) => {
+    setAvailableColumns(headers);
+  
+    const categorical = headers.filter((_, index) => 
+      data.every(row => isNaN(Number(row[index])))
+    );
+    setCategoricalColumns(categorical);
+  
+    const numerical = headers.filter((_, index) => 
+      data.every(row => !isNaN(Number(row[index])))
+    );
+    setNumericalColumns(numerical);
+  
+    // Only set default category and value if they haven't been set before
+    if (!categoryColumn && defaultCategory) {
+      setCategoryColumn(defaultCategory);
+      localStorage.setItem(`${projectId}_${chartType}_categoryColumn`, defaultCategory);
+    }
+    if (!valueColumn && defaultValue) {
+      setValueColumn(defaultValue);
+      localStorage.setItem(`${projectId}_${chartType}_valueColumn`, defaultValue);
+    }
+  };
+
+  const handleAxisChange = (newCategory: string, newValue: string) => {
+    setCategoryColumn(newCategory);
+    setValueColumn(newValue);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -239,12 +296,46 @@ const DonutChart = () => {
             explodedSlice={explodedSlice}
             logoPosition={logoPosition}
             logoUrl={logoUrl}
+            categoryColumn={categoryColumn}
+          valueColumn={valueColumn}
+          updateAvailableColumns={updateAvailableColumns}
+          onAxisChange={handleAxisChange}
             />
         </div>
         
         <div className="w-1/4 pl-4">
 
+        <div className="mb-4">
+            <label htmlFor="category-column-select" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Category Column
+            </label>
+            <select
+              id="category-column-select"
+              value={categoryColumn}
+              onChange={handleCategoryColumnChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            >
+              {categoricalColumns.map((column) => (
+                <option key={column} value={column}>{column}</option>
+              ))}
+            </select>
+          </div>
 
+          <div className="mb-4">
+            <label htmlFor="value-column-select" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Value Column
+            </label>
+            <select
+              id="value-column-select"
+              value={valueColumn}
+              onChange={handleValueColumnChange}
+              className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+            >
+              {numericalColumns.map((column) => (
+                <option key={column} value={column}>{column}</option>
+              ))}
+            </select>
+          </div>
     
         
 

@@ -24,6 +24,8 @@ interface DonutPieChartProps {
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   showLogo: boolean;
   logoUrl: string;
+  categoryColumn: string;
+  valueColumn: string;
   
 }
 
@@ -45,10 +47,15 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
   isDonut,
   logoPosition = 'top-right',
   logoUrl = '/favicon.ico',
-  showLogo = true
+  showLogo = true,
+  categoryColumn,
+  valueColumn
 }) => {
-  const labels = tableData.map(row => row[0] as string);
-  const values = tableData.map(row => parseFloat(row[1] as string) || 0);
+  const categoryIndex = headers.indexOf(categoryColumn);
+  const valueIndex = headers.indexOf(valueColumn);
+
+  const labels = useMemo(() => tableData.map(row => row[categoryIndex] as string), [tableData, categoryIndex]);
+  const values = useMemo(() => tableData.map(row => parseFloat(row[valueIndex] as string) || 0), [tableData, valueIndex]);
 
   const getLogoStyle = (position: string) => {
     const base = {
@@ -73,7 +80,10 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
   const logoStyle = getLogoStyle(logoPosition);
 
 
-  
+  const formatValue = (val: string | number): string => {
+    const numVal = typeof val === 'string' ? parseFloat(val) : val;
+    return isNaN(numVal) ? '0' : numVal.toFixed(2);
+  };
 
   const options = useMemo(() => ({
     chart: {
@@ -89,9 +99,10 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
     labels: labels,
     dataLabels: {
       enabled: isLabelStyle,
-      formatter: function (val: number, opts: any) {
+      formatter: function (val: string | number, opts: any) {
         const label = opts.w.globals.labels[opts.seriesIndex];
-        return showPercentages ? `${label}: ${val.toFixed(1)}%` : label;
+        const formattedVal = formatValue(val);
+        return showPercentages ? `${label}: ${formattedVal}%` : label;
       },
     },
     title: {
@@ -104,14 +115,22 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
         color: '#263238'
       },
     },
-   
+    subtitle: {
+     
+      align: 'center',
+      style: {
+        fontSize: '14px',
+        fontWeight: 'normal',
+        color: '#666'
+      }
+    },
     legend: {
       position: "bottom",
     },
     tooltip: {
       y: {
-        formatter: function (val: number) {
-          return val.toFixed(2);
+        formatter: function (val: string | number) {
+          return formatValue(val);
         }
       }
     },
@@ -137,8 +156,9 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
             },
             value: {
               show: true,
-              formatter: function (val: number) {
-                return showPercentages ? val.toFixed(1) + "%" : val.toFixed(2);
+              formatter: function (val: string | number) {
+                const formattedVal = formatValue(val);
+                return showPercentages ? formattedVal + "%" : formattedVal;
               }
             },
             total: {
@@ -146,7 +166,8 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
               label: 'Total',
               formatter: function (w: any) {
                 const total = w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0);
-                return showPercentages ? total.toFixed(1) + "%" : total.toFixed(2);
+                const formattedTotal = formatValue(total);
+                return showPercentages ? formattedTotal + "%" : formattedTotal;
               }
             }
           }
@@ -168,7 +189,7 @@ const DonutPieChart: React.FC<DonutPieChartProps> = ({
         }
       },
     },
-  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, sliceColors, showPercentages, isDonut, logoPosition]);
+  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, sliceColors, showPercentages, isDonut, logoPosition, categoryColumn, valueColumn]);
 
   const series = useMemo(() => values, [values]);
 

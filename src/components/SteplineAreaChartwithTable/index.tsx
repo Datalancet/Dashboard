@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DataTable from "@/components/DataTable/index";
 import SteplineAreaChart from "../Charts/SteplineAreaChart";
+import { useSearchParams } from 'next/navigation';
 import Papa from "papaparse";
 
 interface SteplineAreaChartWithTableProps {
@@ -12,14 +13,16 @@ interface SteplineAreaChartWithTableProps {
   sourceURL: string;
   chartTitle: string;
   isLabelStyle: boolean;
-  projectId: string;
-  chartType: string;
   showMarkers: boolean;
   curveType: "straight" | "smooth" | "stepline";
   xAxisTitle: string;
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
+  updateAvailableColumns: (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => void;
+  onAxisChange: (xAxis: string, yAxes: string[]) => void;
 }
 
 const SteplineAreaChartWithTable: React.FC<SteplineAreaChartWithTableProps> = ({
@@ -29,62 +32,34 @@ const SteplineAreaChartWithTable: React.FC<SteplineAreaChartWithTableProps> = ({
   sourceURL,
   chartTitle,
   isLabelStyle,
-  projectId,
-  chartType,
   showMarkers,
   curveType,
   xAxisTitle,
   yAxisTitle,
   logoPosition,
-  logoUrl
+  logoUrl,
+  xAxisColumn,
+  yAxisColumns,
+  updateAvailableColumns,
+  onAxisChange
 }) => {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get('projectId') || 'default';
+  const chartType = 'SteplineArea';
+
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
-  const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>('none');
-  const [aggregatedData, setAggregatedData] = useState<any[]>([]);
+  const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>(() => {
+    const savedMethod = localStorage.getItem(`${projectId}_${chartType}_aggregationMethod`);
+    return (savedMethod as 'none' | 'sum' | 'count') || 'none';
+  });
 
-  // Example data for initial line chart rendering
-  const initialData = [
-    ["Month", "Product One", "Product Two"],
-    ["Jan", 23, 30],
-    ["Feb", 11, 25],
-    ["Mar", 22, 36],
-    ["Apr", 27, 30],
-    ["May", 13, 45],
-    ["Jun", 22, 35],
-    ["Jul", 37, 64],
-    ["Aug", 21, 52],
-    ["Sep", 44, 59],
-    ["Oct", 22, 36],
-    ["Nov", 30, 39],
-    ["Dec", 45, 51],
-  ];
-
-  useEffect(() => {
-    const storedHeaders = localStorage.getItem(`${projectId}_${chartType}_headers`);
-    const storedData = localStorage.getItem(`${projectId}_${chartType}_tableData`);
-
-    if (storedHeaders && storedData) {
-      setHeaders(JSON.parse(storedHeaders));
-      setTableData(JSON.parse(storedData));
-    } else if (tableData.length === 0) {
-      setHeaders(initialData[0]);
-      setTableData(initialData.slice(1));
-    }
-  }, [projectId, chartType]);
-
-  useEffect(() => {
-    aggregateData();
-  }, [tableData, aggregationMethod]);
-
-
-  const updateDataFileOnServer = async (csvContent) => {
+  const updateDataFileOnServer = async (csvContent: string) => {
     try {
       if (!projectId) {
         throw new Error('No project ID available');
       }
   
-      // Fetch current project details
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
         throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
@@ -103,7 +78,7 @@ const SteplineAreaChartWithTable: React.FC<SteplineAreaChartWithTableProps> = ({
       formData.append('html_file', htmlBlob, '/demo.html');
       
       formData.append('data_file', new Blob([csvContent], { type: 'text/csv' }), 'data.csv');
-      formData.append('project_status', project_status); // Preserve the current project status
+      formData.append('project_status', project_status);
   
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
@@ -125,66 +100,97 @@ const SteplineAreaChartWithTable: React.FC<SteplineAreaChartWithTableProps> = ({
     }
   };
 
-  const handleDataChange = async (newHeaders: string[], newData: any[]) => {
+  const handleDataChange = useCallback(async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
-  
-    // Save data to API
-    try {
-      if (!projectId) {
-        throw new Error('No project ID available');
+
+    let defaultX = '';
+    let defaultY: string[] = [];
+
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => isNaN(Number(row[i])))) {
+        defaultX = newHeaders[i];
+        break;
       }
-  
-      // Prepare CSV content
+    }
+
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => !isNaN(Number(row[i])))) {
+        defaultY.push(newHeaders[i]);
+        if (defaultY.length === 2) break;
+      }
+    }
+
+    updateAvailableColumns(newHeaders, newData, defaultX, defaultY);
+
+    if (!xAxisColumn || yAxisColumns.length === 0) {
+      onAxisChange(defaultX, defaultY);
+    }
+
+    try {
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
       const result = await updateDataFileOnServer(csvContent);
       console.log('Data saved successfully to API:', result);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
-  };
+  }, [projectId, updateAvailableColumns, onAxisChange, xAxisColumn, yAxisColumns]);
+
   const handleAggregationMethodChange = (method: 'none' | 'sum' | 'count') => {
     setAggregationMethod(method);
+    localStorage.setItem(`${projectId}_${chartType}_aggregationMethod`, method);
   };
 
-
-  const aggregateData = () => {
-    if (aggregationMethod === 'none') {
-      setAggregatedData(tableData);
-      return;
+  const aggregateData = useCallback(() => {
+    if (aggregationMethod === 'none' || !xAxisColumn || yAxisColumns.length === 0) {
+      return tableData.map(row => {
+        const newRow = [row[headers.indexOf(xAxisColumn)]];
+        yAxisColumns.forEach(col => newRow.push(row[headers.indexOf(col)]));
+        return newRow;
+      });
     }
 
-    const aggregated = tableData.reduce((acc, curr) => {
-      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
+    const xIndex = headers.indexOf(xAxisColumn);
+    const yIndices = yAxisColumns.map(col => headers.indexOf(col));
+
+    return tableData.reduce((acc, curr) => {
+      const key = curr[xIndex];
+      const existingIndex = acc.findIndex(item => item[0] === key);
+      
       if (existingIndex > -1) {
-        if (aggregationMethod === 'sum') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + parseFloat(curr[2])).toString();
-        } else if (aggregationMethod === 'count') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + 1).toString();
-        }
+        yIndices.forEach((yIndex, i) => {
+          if (aggregationMethod === 'sum') {
+            acc[existingIndex][i + 1] = (parseFloat(acc[existingIndex][i + 1]) + parseFloat(curr[yIndex])).toString();
+          } else if (aggregationMethod === 'count') {
+            acc[existingIndex][i + 1] = (parseFloat(acc[existingIndex][i + 1]) + 1).toString();
+          }
+        });
       } else {
         if (aggregationMethod === 'count') {
-          acc.push([curr[0], '1', '1', curr[3], curr[4]]);
+          acc.push([key, ...yIndices.map(() => '1')]);
         } else {
-          acc.push(curr);
+          acc.push([key, ...yIndices.map(yIndex => curr[yIndex])]);
         }
       }
       return acc;
     }, []);
+  }, [aggregationMethod, tableData, headers, xAxisColumn, yAxisColumns]);
 
-    setAggregatedData(aggregated);
-  };
+  const aggregatedData = useMemo(() => aggregateData(), [aggregateData]);
+
+  const chartData = useMemo(() => {
+    return {
+      headers: [xAxisColumn, ...yAxisColumns],
+      tableData: aggregatedData
+    };
+  }, [xAxisColumn, yAxisColumns, aggregatedData]);
 
   return (
     <div>
       <div id="chart">
         <SteplineAreaChart
-          headers={headers}
-          tableData={tableData}
+          headers={chartData.headers}
+          tableData={chartData.tableData}
           lineColors={lineColors}
           titleAlignment={titleAlignment}
           sourceName={sourceName}
@@ -197,7 +203,8 @@ const SteplineAreaChartWithTable: React.FC<SteplineAreaChartWithTableProps> = ({
           yAxisTitle={yAxisTitle}
           logoPosition={logoPosition} 
           logoUrl={logoUrl}
-          showLogo={true} />
+          showLogo={true}
+        />
       </div>
       <div className="mt-4 mb-4">
         <label htmlFor="aggregation-method" className="mr-2">Aggregation Method:</label>
@@ -212,12 +219,7 @@ const SteplineAreaChartWithTable: React.FC<SteplineAreaChartWithTableProps> = ({
           <option value="count">Count</option>
         </select>
       </div>
-      <DataTable
-        onDataChange={handleDataChange}
-        projectId={projectId}
-        chartType={chartType}
-        initialData={tableData.length === 0 ? initialData : undefined}
-      />
+      <DataTable onDataChange={handleDataChange} projectId={projectId} chartType={chartType} />
     </div>
   );
 };

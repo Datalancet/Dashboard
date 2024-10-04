@@ -24,7 +24,34 @@ const Modal = ({ isOpen, onClose, children }) => {
   );
 };
 
-const MapDataTable = ({ onDataChange }) => {
+interface MapWithTableProps {
+  design: string;
+  color: string;
+  mapTitle: string;
+  titleAlignment: "left" | "center" | "right";
+  sourceName: string;
+  sourceURL: string;
+  projectId: string;
+  chartType: string;
+  logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  logoUrl: string;
+  onDataChange?: (headers: string[], data: any[][]) => void; // Add this line
+  mapRef: React.RefObject<HTMLDivElement>; 
+}
+
+const MapDataTable: React.FC<MapWithTableProps> = ({
+  design,
+  color,
+  mapTitle,
+  titleAlignment,
+  sourceName,
+  sourceURL,
+  chartType,
+  logoPosition,
+  logoUrl,
+    onDataChange,
+    mapRef
+}) => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId');
 
@@ -56,17 +83,42 @@ const MapDataTable = ({ onDataChange }) => {
 
 
   const [defaultCSV, setDefaultCSV] = useState(`
-    ['us-nd', 2.0], ['us-sd', 2.0], ['us-vt', 2.1], ['us-ne', 2.5], ['us-nh', 2.5],
-    ['us-md', 2.7], ['us-va', 2.7], ['us-ia', 2.8], ['us-mn', 2.8], ['us-ms', 2.8],
-    ['us-ks', 2.9], ['us-ut', 2.9], ['us-wi', 2.9], ['us-wy', 2.9], ['us-al', 3.0],
-    ['us-hi', 3.0], ['us-me', 3.0], ['us-ma', 3.0], ['us-tn', 3.0], ['us-mt', 3.1],
-    ['us-ga', 3.2], ['us-fl', 3.3], ['us-id', 3.3], ['us-az', 3.4], ['us-ar', 3.4],
-    ['us-pa', 3.4], ['us-sc', 3.4], ['us-mo', 3.5], ['us-ok', 3.5], ['us-nc', 3.6],
-    ['us-in', 3.7], ['us-co', 3.8], ['us-nm', 3.8], ['us-de', 3.9], ['us-mi', 3.9],
-    ['us-tx', 4.0], ['us-la', 4.1], ['us-ny', 4.2], ['us-oh', 4.2], ['us-or', 4.2],
-    ['us-wv', 4.2], ['us-ct', 4.3], ['us-ri', 4.3], ['us-ak', 4.5], ['us-ky', 4.6],
-    ['us-nj', 4.6], ['us-il', 4.9], ['us-wa', 4.9], ['us-nv', 5.1], ['us-ca', 5.2],
-    ['us-dc', 5.3]
+     ['in-ap', 'Andhra Pradesh', 49506799],
+    ['in-ar', 'Arunachal Pradesh', 1383727],
+    ['in-as', 'Assam', 31205576],
+    ['in-br', 'Bihar', 104099452],
+    ['in-ct', 'Chhattisgarh', 25545198],
+    ['in-ga', 'Goa', 1458545],
+    ['in-gj', 'Gujarat', 60439692],
+    ['in-hr', 'Haryana', 25351462],
+    ['in-hp', 'Himachal Pradesh', 6864602],
+    ['in-jk', 'Jammu and Kashmir', 12267032],
+    ['in-jh', 'Jharkhand', 32988134],
+    ['in-ka', 'Karnataka', 61095297],
+    ['in-kl', 'Kerala', 33406061],
+    ['in-mp', 'Madhya Pradesh', 72626809],
+    ['in-mh', 'Maharashtra', 112374333],
+    ['in-mn', 'Manipur', 2855794],
+    ['in-ml', 'Meghalaya', 2966889],
+    ['in-mz', 'Mizoram', 1097206],
+    ['in-nl', 'Nagaland', 1978502],
+    ['in-or', 'Odisha', 41974218],
+    ['in-pb', 'Punjab', 27743338],
+    ['in-rj', 'Rajasthan', 68548437],
+    ['in-sk', 'Sikkim', 610577],
+    ['in-tn', 'Tamil Nadu', 72147030],
+    ['in-tg', 'Telangana', 35003674],
+    ['in-tr', 'Tripura', 3673917],
+    ['in-ut', 'Uttarakhand', 10086292],
+    ['in-up', 'Uttar Pradesh', 199812341],
+    ['in-wb', 'West Bengal', 91276115],
+    ['in-an', 'Andaman and Nicobar Islands', 380581],
+    ['in-ch', 'Chandigarh', 1055450],
+    ['in-dn', 'Dadra and Nagar Haveli', 343709],
+    ['in-dd', 'Daman and Diu', 243247],
+    ['in-dl', 'Delhi', 16787941],
+    ['in-ld', 'Lakshadweep', 64473],
+    ['in-py', 'Puducherry', 1247953]
 `);
 
 
@@ -331,12 +383,27 @@ useEffect(() => {
     setIsModalOpen(false);
   };
 
-  const parseCSV = (content) => {
+  const parseCSV = (content: string) => {
     const result = Papa.parse(content, { header: false });
     const [headerRow, ...dataRows] = result.data;
     setHeaders(headerRow);
     setTableData(dataRows);
   };
+
+  const handleDataChange = async (newHeaders: string[], newData: any[]) => {
+    setHeaders(newHeaders);
+    setTableData(newData);
+  
+    if (projectId) {
+      try {
+        const csvContent = Papa.unparse([newHeaders, ...newData]);
+        await updateDataFileOnServer(csvContent);
+      } catch (error) {
+        console.error('Error saving data to API:', error);
+      }
+    }
+  };
+
 
   const generateHTMLContent = (imageDataURL) => {
     return `
@@ -664,34 +731,35 @@ useEffect(() => {
     setIsModalOpen(false);
     setIsPublishing(true);
     try {
-      const chartElement = document.getElementById("chart");
-      if (!chartElement) {
-        throw new Error("Chart element not found");
+      // Use the mapRef to get the map element
+      if (!mapRef.current) {
+        throw new Error("Map element not found");
       }
-  
-      const canvas = await html2canvas(chartElement);
+
+      // Capture only the map element
+      const canvas = await html2canvas(mapRef.current);
       const imageDataURL = canvas.toDataURL("image/png");
-  
+
       setHasUnsavedChanges(false);
-  
+
       // Generate HTML content
       const htmlContent = await convertImageToHTML(imageDataURL);
-  
+
       if (projectId) {
         // Update the HTML file on the server
         await updateHTMLFileOnServer(htmlContent, true);
-  
+
         const updateResult = await updateProjectStatus(projectId, htmlContent);
         
         console.log('Update result:', updateResult);
-  
+
         if (updateResult && updateResult.name && updateResult.description) {
           console.log('Updated project details:', updateResult);
           if (updateResult.project_status === "Published") {
             setIsPublished(true);
             
             let fullEmbedURL, fullScriptURL;
-  
+
             if (updateResult.embed_url) {
               fullEmbedURL = `http://dashboardtool.pythonanywhere.com${updateResult.embed_url}`;
               fullScriptURL = fullEmbedURL.replace('/embed/', '/script/');
@@ -700,10 +768,10 @@ useEffect(() => {
               fullEmbedURL = `http://dashboardtool.pythonanywhere.com/embed/${projectId}`;
               fullScriptURL = `http://dashboardtool.pythonanywhere.com/script/${projectId}`;
             }
-  
+
             console.log('Setting embed URL:', fullEmbedURL);
             console.log('Setting script URL:', fullScriptURL);
-  
+
             setEmbedURL(fullEmbedURL);
             setScriptURL(fullScriptURL);
             
@@ -725,7 +793,7 @@ useEffect(() => {
             
             setPublishedImageURL(imageDataURL);
             setIsPublishModalOpen(true);
-  
+
           } else {
             console.warn("Project status not updated to 'Published'. Current status:", updateResult.project_status);
             alert(`Project updated, but status is ${updateResult.project_status}. Please check again in a few moments.`);
@@ -744,7 +812,7 @@ useEffect(() => {
           alert("Unable to save project data locally due to storage limitations. The data is available for this session only.");
         }
       }
-  
+
     } catch (error) {
       console.error('Error publishing project:', error);
       alert(`Failed to publish project: ${error.message}. Please check the console for more details.`);
@@ -752,6 +820,7 @@ useEffect(() => {
       setIsPublishing(false);
     }
   };
+
 
   const handleDownloadImage = () => {
     if (publishedImageURL) {

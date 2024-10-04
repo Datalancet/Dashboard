@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable/index";
 import HeatMapMulti from "../Charts/HeatMapMulti";
@@ -20,6 +18,10 @@ interface HeatMapMultiWithTableProps {
   cellRadius: number;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
+  updateAvailableColumns: (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => void;
+  onAxisChange: (xAxis: string, yAxes: string[]) => void;
 }
 
 const HeatMapMultiWithTable: React.FC<HeatMapMultiWithTableProps> = ({
@@ -36,15 +38,17 @@ const HeatMapMultiWithTable: React.FC<HeatMapMultiWithTableProps> = ({
   reversedYAxis,
   cellRadius,
   logoPosition,
-  logoUrl
+  logoUrl,
+  xAxisColumn,
+  yAxisColumns,
+  updateAvailableColumns,
+  onAxisChange
 }) => {
- const [tableData, setTableData] = useState<any[]>([]);
+  const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [aggregationMethod, setAggregationMethod] = useState<'none' | 'average' | 'max'>('none');
   const [aggregatedData, setAggregatedData] = useState<any[]>([]);
 
-
-  // Example data for initial heatmap rendering with multiple series
   const initialData = [
     ["X", "Y", "Series1", "Series2", "Series3"],
     ["A", "1", 10, 20, 30],
@@ -59,26 +63,51 @@ const HeatMapMultiWithTable: React.FC<HeatMapMultiWithTableProps> = ({
     const storedHeaders = localStorage.getItem(`${projectId}_${chartType}_headers`);
     const storedData = localStorage.getItem(`${projectId}_${chartType}_tableData`);
 
+    let parsedHeaders: string[];
+    let parsedData: any[][];
+
     if (storedHeaders && storedData) {
-      setHeaders(JSON.parse(storedHeaders));
-      setTableData(JSON.parse(storedData));
-    } else if (tableData.length === 0) {
-      setHeaders(initialData[0]);
-      setTableData(initialData.slice(1));
+      parsedHeaders = JSON.parse(storedHeaders);
+      parsedData = JSON.parse(storedData);
+    } else {
+      parsedHeaders = initialData[0];
+      parsedData = initialData.slice(1);
     }
+
+    setHeaders(parsedHeaders);
+    setTableData(parsedData);
+
+    // Automatically select default X and Y axes
+    const defaultX = selectDefaultXAxis(parsedHeaders, parsedData);
+    const defaultY = selectDefaultYAxes(parsedHeaders, parsedData);
+
+    updateAvailableColumns(parsedHeaders, parsedData, defaultX, defaultY);
+    onAxisChange(defaultX, defaultY);
+
   }, [projectId, chartType]);
 
   useEffect(() => {
     aggregateData();
-  }, [tableData, aggregationMethod]);
+  }, [tableData, aggregationMethod, xAxisColumn, yAxisColumns]);
 
-  const updateDataFileOnServer = async (csvContent) => {
+  const selectDefaultXAxis = (headers: string[], data: any[][]): string => {
+    // Select the first column that contains string values
+    return headers.find((_, index) => data.every(row => typeof row[index] === 'string')) || headers[0];
+  };
+
+  const selectDefaultYAxes = (headers: string[], data: any[][]): string[] => {
+    // Select up to 3 columns that contain numeric values
+    return headers.filter((_, index) => 
+      data.every(row => !isNaN(Number(row[index])))
+    ).slice(0, 3);
+  };
+
+  const updateDataFileOnServer = async (csvContent: string) => {
     try {
       if (!projectId) {
         throw new Error('No project ID available');
       }
   
-      // Fetch current project details
       const projectResponse = await fetch(`https://dashboardtool.pythonanywhere.com/api/v1/projects/detail/?id=${projectId}`);
       if (!projectResponse.ok) {
         throw new Error(`Failed to fetch project details: ${projectResponse.status}`);
@@ -97,7 +126,7 @@ const HeatMapMultiWithTable: React.FC<HeatMapMultiWithTableProps> = ({
       formData.append('html_file', htmlBlob, '/demo.html');
       
       formData.append('data_file', new Blob([csvContent], { type: 'text/csv' }), 'data.csv');
-      formData.append('project_status', project_status); // Preserve the current project status
+      formData.append('project_status', project_status);
   
       const response = await fetch('https://dashboardtool.pythonanywhere.com/api/v1/projects/create-or-upload/', {
         method: 'POST',
@@ -122,21 +151,20 @@ const HeatMapMultiWithTable: React.FC<HeatMapMultiWithTableProps> = ({
   const handleDataChange = async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
-  
-    // Save data to API
+
+    // Automatically select default X and Y axes for new data
+    const defaultX = selectDefaultXAxis(newHeaders, newData);
+    const defaultY = selectDefaultYAxes(newHeaders, newData);
+
+    updateAvailableColumns(newHeaders, newData, defaultX, defaultY);
+    onAxisChange(defaultX, defaultY);
+
     try {
-      if (!projectId) {
-        throw new Error('No project ID available');
-      }
-  
-      // Prepare CSV content
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
       const result = await updateDataFileOnServer(csvContent);
       console.log('Data saved successfully to API:', result);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
   };
 
@@ -145,48 +173,58 @@ const HeatMapMultiWithTable: React.FC<HeatMapMultiWithTableProps> = ({
   };
 
   const aggregateData = () => {
-    if (aggregationMethod === 'none') {
+    if (aggregationMethod === 'none' || !xAxisColumn || yAxisColumns.length === 0) {
       setAggregatedData(tableData);
       return;
     }
 
+    const xIndex = headers.indexOf(xAxisColumn);
+    const yIndices = yAxisColumns.map(col => headers.indexOf(col));
+
     const aggregated = tableData.reduce((acc, curr) => {
-      const key = `${curr[0]}-${curr[1]}`;
+      const key = `${curr[xIndex]}`;
       if (!acc[key]) {
-        acc[key] = { sum: new Array(curr.length - 2).fill(0), count: 0, max: new Array(curr.length - 2).fill(-Infinity), values: [] };
+        acc[key] = { sum: new Array(yIndices.length).fill(0), count: 0, max: new Array(yIndices.length).fill(-Infinity), values: [] };
       }
-      for (let i = 2; i < curr.length; i++) {
-        const value = parseFloat(curr[i]);
-        acc[key].sum[i - 2] += value;
-        acc[key].max[i - 2] = Math.max(acc[key].max[i - 2], value);
-      }
+      yIndices.forEach((yIndex, i) => {
+        const value = parseFloat(curr[yIndex]);
+        acc[key].sum[i] += value;
+        acc[key].max[i] = Math.max(acc[key].max[i], value);
+      });
       acc[key].count += 1;
-      acc[key].values.push(curr.slice(2));
+      acc[key].values.push(yIndices.map(yIndex => curr[yIndex]));
       return acc;
     }, {} as Record<string, { sum: number[], count: number, max: number[], values: number[][] }>);
 
     const result = Object.entries(aggregated).map(([key, data]) => {
-      const [x, y] = key.split('-');
       let values: number[];
       if (aggregationMethod === 'average') {
         values = data.sum.map(sum => sum / data.count);
       } else if (aggregationMethod === 'max') {
         values = data.max;
       } else {
-        values = data.values[0]; // Fallback to first value
+        values = data.values[0];
       }
-      return [x, y, ...values.map(v => v.toFixed(2))];
+      return [key, ...values.map(v => v.toFixed(2))];
     });
 
     setAggregatedData(result);
+  };
+
+  const chartData = {
+    headers: [xAxisColumn, ...yAxisColumns],
+    tableData: aggregatedData.length > 0 ? aggregatedData : tableData.map(row => [
+      row[headers.indexOf(xAxisColumn)],
+      ...yAxisColumns.map(col => row[headers.indexOf(col)])
+    ])
   };
 
   return (
     <div>
       <div id="chart">
         <HeatMapMulti
-          headers={headers}
-          tableData={aggregatedData.length > 0 ? aggregatedData : tableData}
+          headers={chartData.headers}
+          tableData={chartData.tableData}
           heatmapColors={heatmapColors}
           titleAlignment={titleAlignment}
           sourceName={sourceName}

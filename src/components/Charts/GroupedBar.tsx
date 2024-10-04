@@ -6,8 +6,8 @@ import dynamic from 'next/dynamic';
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 interface GroupedBarProps {
-  headers?: string[];
-  tableData?: (string | number)[][];
+  headers: string[];
+  tableData: (string | number)[][];
   color: string;
   design: string;
   gridVariation: string;
@@ -20,17 +20,19 @@ interface GroupedBarProps {
   chartTitle: string;
   isLabelStyle: boolean;
   labelPosition: "above" | "axis";
-  seriesNames?: string[];
+  seriesNames: string[];
   xAxisTitle: string;
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   showLogo: boolean;
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
 }
 
 const GroupedBar: React.FC<GroupedBarProps> = ({ 
-  headers = [], 
-  tableData = [], 
+  headers, 
+  tableData, 
   color,
   design,
   gridVariation,
@@ -43,17 +45,15 @@ const GroupedBar: React.FC<GroupedBarProps> = ({
   chartTitle,
   isLabelStyle,
   labelPosition,
+  seriesNames,
   xAxisTitle,
   yAxisTitle,
   logoPosition = 'top-right',
   logoUrl = '/favicon.ico',
   showLogo = true,
-  seriesNames = ["Fossil fuels sources", "Low-carbon sources"]
+  xAxisColumn,
+  yAxisColumns
 }) => {
-  const countries = tableData.map(row => row[0] as string);
-  const fossilFuels = tableData.map(row => parseFloat(row[1] as string) || 0);
-  const lowCarbon = tableData.map(row => parseFloat(row[2] as string) || 0);
-
   const getLogoStyle = (position: string) => {
     const base = {
       position: 'absolute',
@@ -76,6 +76,18 @@ const GroupedBar: React.FC<GroupedBarProps> = ({
 
   const logoStyle = getLogoStyle(logoPosition);
 
+  const processedData = useMemo(() => {
+    const xAxisIndex = headers.indexOf(xAxisColumn);
+    const yAxisIndices = yAxisColumns.map(col => headers.indexOf(col));
+    
+    const xAxisData = tableData.map(row => row[xAxisIndex]);
+    const yAxisData = yAxisIndices.map(index => 
+      tableData.map(row => parseFloat(row[index] as string) || 0)
+    );
+    
+    return { xAxisData, yAxisData };
+  }, [headers, tableData, xAxisColumn, yAxisColumns]);
+
   const options = useMemo(() => ({
     chart: {
       type: 'bar',
@@ -88,7 +100,7 @@ const GroupedBar: React.FC<GroupedBarProps> = ({
       },
       padding: { bottom: 20 },
     },
-    colors: [color, "#3b82f6"],
+    colors: yAxisColumns.map((_, index) => index === 0 ? color : "#3b82f6"),
     plotOptions: {
       bar: {
         horizontal: true,
@@ -113,7 +125,7 @@ const GroupedBar: React.FC<GroupedBarProps> = ({
       colors: ['transparent']
     },
     xaxis: {
-      categories: countries,
+      categories: processedData.xAxisData,
       position: xAxisPosition as "top" | "bottom",
       title: {
         text: xAxisTitle,
@@ -170,19 +182,16 @@ const GroupedBar: React.FC<GroupedBarProps> = ({
   }), [
     color, design, gridVariation, xAxisPosition, yAxisPosition, titleAlignment, 
     valuesPosition, chartTitle, sourceName, sourceURL, xAxisTitle,
-    yAxisTitle, isLabelStyle, labelPosition, countries,logoPosition
+    yAxisTitle, isLabelStyle, labelPosition, processedData, yAxisColumns
   ]);
 
-  const series = useMemo(() => [
-    {
-      name: seriesNames[0],
-      data: fossilFuels,
-    },
-    {
-      name: seriesNames[1],
-      data: lowCarbon,
-    },
-  ], [seriesNames, fossilFuels, lowCarbon]);
+  const series = useMemo(() => 
+    yAxisColumns.map((column, index) => ({
+      name: seriesNames[index] || column,
+      data: processedData.yAxisData[index],
+    })),
+    [yAxisColumns, seriesNames, processedData]
+  );
 
   useEffect(() => {
     console.log("Series Names:", seriesNames);

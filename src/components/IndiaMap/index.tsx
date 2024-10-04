@@ -6,15 +6,15 @@ import MapWithTable from "../MapWithTable";
 import html2canvas from "html2canvas";
 import { useSearchParams } from 'next/navigation';
 
-const USMap = () => {
+const IndiaMap = () => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') || 'default';
-  const chartType = 'map';
+  const chartType = 'indiamap';
 
   const [design, setDesign] = useState(() => localStorage.getItem(`${projectId}_${chartType}_design`) || "default");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [color, setColor] = useState(() => localStorage.getItem(`${projectId}_${chartType}_color`) || "#3b82f6");
-  const [mapTitle, setMapTitle] = useState(() => localStorage.getItem(`${projectId}_${chartType}_mapTitle`) || "US States Data");
+  const [mapTitle, setMapTitle] = useState(() => localStorage.getItem(`${projectId}_${chartType}_mapTitle`) || "India States Data");
   const [titleAlignment, setTitleAlignment] = useState(() => localStorage.getItem(`${projectId}_${chartType}_titleAlignment`) || "left");
   const [sourceName, setSourceName] = useState(() => localStorage.getItem(`${projectId}_${chartType}_sourceName`) || "");
   const [sourceURL, setSourceURL] = useState(() => localStorage.getItem(`${projectId}_${chartType}_sourceURL`) || "");
@@ -94,7 +94,7 @@ const USMap = () => {
       }).then((canvas) => {
         const link = document.createElement("a");
         link.href = canvas.toDataURL("image/png");
-        link.download = "us_map.png";
+        link.download = "india_map.png";
         link.click();
       }).catch((error) => {
         console.error("Error capturing map:", error);
@@ -108,23 +108,23 @@ const USMap = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <Breadcrumb pageName="US Map" />
+        <Breadcrumb pageName="India Map" />
       </div>
       
       <div className="flex">
         <div className="w-3/4" ref={mapRef}>
-        <MapWithTable
-  design={design}
-  color={color}
-  mapTitle={mapTitle}
-  titleAlignment={titleAlignment}
-  sourceName={sourceName}
-  sourceURL={sourceURL}
-  projectId={projectId}
-  chartType={chartType}
-  logoPosition={logoPosition}
-  logoUrl={logoUrl}
-/>
+          <MapWithTable
+            design={design}
+            color={color}
+            mapTitle={mapTitle}
+            titleAlignment={titleAlignment}
+            sourceName={sourceName}
+            sourceURL={sourceURL}
+            projectId={projectId}
+            chartType={chartType}
+            logoPosition={logoPosition}
+            logoUrl={logoUrl}
+          />
         </div>
         
         <div className="w-1/4 pl-4">
@@ -258,4 +258,4 @@ const USMap = () => {
   );
 };
 
-export default USMap;
+export default IndiaMap;

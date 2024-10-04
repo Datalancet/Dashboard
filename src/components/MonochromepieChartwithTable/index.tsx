@@ -23,6 +23,10 @@ interface MonochromepieChartWithTableProps {
   explodedSlice: number;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  categoryColumn: string;
+  valueColumn: string;
+  updateAvailableColumns: (headers: string[], data: any[][], defaultCategory: string, defaultValue: string) => void;
+  onAxisChange: (category: string, value: string) => void;
 }
 
 const MonochromepieChartWithTable: React.FC<MonochromepieChartWithTableProps> = ({
@@ -42,14 +46,17 @@ const MonochromepieChartWithTable: React.FC<MonochromepieChartWithTableProps> = 
   showPercentages,
   explodedSlice,
   logoPosition,
-  logoUrl
+  logoUrl,
+  categoryColumn,
+  valueColumn,
+  updateAvailableColumns,
+  onAxisChange
 }) => {
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [aggregationMethod, setAggregationMethod] = useState<'none' | 'sum' | 'count'>('none');
   const [aggregatedData, setAggregatedData] = useState<any[]>([]);
 
-  // Example data for initial pie chart rendering
   const initialData = [
     ["Category", "Value"],
     ["Slice 1", 30],
@@ -60,25 +67,43 @@ const MonochromepieChartWithTable: React.FC<MonochromepieChartWithTableProps> = 
   ];
 
   useEffect(() => {
-    // Load data from localStorage based on projectId and chartType
     const storedHeaders = localStorage.getItem(`${projectId}_${chartType}_headers`);
     const storedData = localStorage.getItem(`${projectId}_${chartType}_tableData`);
 
+    let parsedHeaders: string[];
+    let parsedData: any[][];
+
     if (storedHeaders && storedData) {
-      const parsedHeaders = JSON.parse(storedHeaders);
-      const parsedData = JSON.parse(storedData);
-      setHeaders(parsedHeaders);
-      setTableData(parsedData);
+      parsedHeaders = JSON.parse(storedHeaders);
+      parsedData = JSON.parse(storedData);
     } else {
-      // Use initial data if no stored data is found
-      setHeaders(initialData[0]);
-      setTableData(initialData.slice(1));
+      parsedHeaders = initialData[0];
+      parsedData = initialData.slice(1);
     }
+
+    setHeaders(parsedHeaders);
+    setTableData(parsedData);
+
+    // Automatically select default category and value columns
+    const defaultCategory = selectDefaultCategoryColumn(parsedHeaders, parsedData);
+    const defaultValue = selectDefaultValueColumn(parsedHeaders, parsedData);
+
+    updateAvailableColumns(parsedHeaders, parsedData, defaultCategory, defaultValue);
+    onAxisChange(defaultCategory, defaultValue);
+
   }, [projectId, chartType]);
 
   useEffect(() => {
     aggregateData();
-  }, [tableData, aggregationMethod]);
+  }, [tableData, aggregationMethod, categoryColumn, valueColumn]);
+
+  const selectDefaultCategoryColumn = (headers: string[], data: any[][]): string => {
+    return headers.find((_, index) => data.every(row => typeof row[index] === 'string')) || headers[0];
+  };
+
+  const selectDefaultValueColumn = (headers: string[], data: any[][]): string => {
+    return headers.find((_, index) => data.every(row => !isNaN(Number(row[index])))) || headers[1];
+  };
 
   const updateDataFileOnServer = async (csvContent) => {
     try {
@@ -130,21 +155,20 @@ const MonochromepieChartWithTable: React.FC<MonochromepieChartWithTableProps> = 
   const handleDataChange = async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
-  
-    // Save data to API
+
+    // Automatically select default category and value columns for new data
+    const defaultCategory = selectDefaultCategoryColumn(newHeaders, newData);
+    const defaultValue = selectDefaultValueColumn(newHeaders, newData);
+
+    updateAvailableColumns(newHeaders, newData, defaultCategory, defaultValue);
+    onAxisChange(defaultCategory, defaultValue);
+
     try {
-      if (!projectId) {
-        throw new Error('No project ID available');
-      }
-  
-      // Prepare CSV content
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
       const result = await updateDataFileOnServer(csvContent);
       console.log('Data saved successfully to API:', result);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
   };
 
@@ -153,39 +177,54 @@ const MonochromepieChartWithTable: React.FC<MonochromepieChartWithTableProps> = 
   };
 
   const aggregateData = () => {
-    if (aggregationMethod === 'none') {
+    if (aggregationMethod === 'none' || !categoryColumn || !valueColumn) {
       setAggregatedData(tableData);
       return;
     }
 
-    const aggregated = tableData.reduce((acc, curr) => {
-      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
-      if (existingIndex > -1) {
-        if (aggregationMethod === 'sum') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
-        } else if (aggregationMethod === 'count') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
-        }
-      } else {
-        if (aggregationMethod === 'count') {
-          acc.push([curr[0], '1']);
-        } else {
-          acc.push(curr);
-        }
-      }
-      return acc;
-    }, []);
+    const categoryIndex = headers.indexOf(categoryColumn);
+    const valueIndex = headers.indexOf(valueColumn);
 
-    setAggregatedData(aggregated);
-  }; 
+    const aggregated = tableData.reduce((acc, curr) => {
+      const category = curr[categoryIndex];
+      const value = parseFloat(curr[valueIndex]);
+
+      if (!acc[category]) {
+        acc[category] = { sum: 0, count: 0 };
+      }
+
+      if (aggregationMethod === 'sum') {
+        acc[category].sum += value;
+      } else if (aggregationMethod === 'count') {
+        acc[category].count += 1;
+      }
+
+      return acc;
+    }, {});
+
+    const result = Object.entries(aggregated).map(([category, data]) => [
+      category,
+      aggregationMethod === 'sum' ? data.sum : data.count
+    ]);
+
+    setAggregatedData(result);
+  };
+
+  const chartData = {
+    headers: [categoryColumn, valueColumn],
+    tableData: aggregatedData.length > 0 ? aggregatedData : tableData.map(row => [
+      row[headers.indexOf(categoryColumn)],
+      parseFloat(row[headers.indexOf(valueColumn)])
+    ])
+  };
 
   return (
     <div>
       <div id="chart">
         <MonochromePieChart
-          headers={headers}
-          tableData={aggregationMethod === 'none' ? tableData : aggregatedData}
-          color={color === "custom" ? "yourCustomColor" : color}
+          headers={chartData.headers}
+          tableData={chartData.tableData}
+          color={color}
           titleAlignment={titleAlignment}
           chartTitle={chartTitle}
           isLabelStyle={isLabelStyle}
@@ -201,8 +240,8 @@ const MonochromepieChartWithTable: React.FC<MonochromepieChartWithTableProps> = 
           logoPosition={logoPosition} 
           logoUrl={logoUrl}
           showLogo={true}
-          projectId={projectId}
-          chartType={chartType}
+          categoryColumn={categoryColumn}
+          valueColumn={valueColumn}
         />
       </div>
       <div className="mt-4 mb-4">

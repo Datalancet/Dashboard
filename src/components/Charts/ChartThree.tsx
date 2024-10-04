@@ -24,6 +24,8 @@ interface ChartThreeProps {
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   showLogo: boolean;
   logoUrl: string;
+  categoryColumn: string;
+  valueColumn: string;
 }
 
 const ChartThree: React.FC<ChartThreeProps> = ({
@@ -44,10 +46,12 @@ const ChartThree: React.FC<ChartThreeProps> = ({
   explodedSlice,
   logoPosition = 'top-right',
   logoUrl = '/favicon.ico',
-  showLogo = true
+  showLogo = true,
+  categoryColumn,
+  valueColumn
 }) => {
-  const labels = tableData.map(row => row[0] as string);
-  const values = tableData.map(row => parseFloat(row[1] as string) || 0);
+  const labels = useMemo(() => tableData.map(row => row[0] as string), [tableData]);
+  const values = useMemo(() => tableData.map(row => parseFloat(row[1] as string) || 0), [tableData]);
 
   const getLogoStyle = (position: string) => {
     const base = {
@@ -103,6 +107,8 @@ const ChartThree: React.FC<ChartThreeProps> = ({
         color: '#263238'
       },
     },
+
+    
     
     legend: {
       position: "bottom",
@@ -136,7 +142,15 @@ const ChartThree: React.FC<ChartThreeProps> = ({
         }
       },
     },
-  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, isDonut, sliceColors, showPercentages,logoPosition]);
+    xaxis: {
+      categories: labels,
+    },
+    yaxis: {
+      title: {
+        text: valueColumn,
+      },
+    },
+  }), [color, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, labels, donutSize, startAngle, endAngle, isDonut, sliceColors, showPercentages,logoPosition,valueColumn]);
 
   const series = useMemo(() => values, [values]);
 

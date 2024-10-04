@@ -17,6 +17,16 @@ const LineChart = () => {
   const [sourceName, setSourceName] = useState(() => localStorage.getItem(`${projectId}_${chartType}_sourceName`) || "");
   const [sourceURL, setSourceURL] = useState(() => localStorage.getItem(`${projectId}_${chartType}_sourceURL`) || "");
   const [chartTitle, setChartTitle] = useState(() => localStorage.getItem(`${projectId}_${chartType}_chartTitle`) || "");
+  const [xAxisColumn, setXAxisColumn] = useState(() => 
+    localStorage.getItem(`${projectId}_${chartType}_xAxisColumn`) || ""
+  );
+  const [yAxisColumns, setYAxisColumns] = useState(() => {
+    const savedColumns = localStorage.getItem(`${projectId}_${chartType}_yAxisColumns`);
+    return savedColumns ? JSON.parse(savedColumns) : [];
+  });
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [alphabeticColumns, setAlphabeticColumns] = useState<string[]>([]);
+  const [numericColumns, setNumericColumns] = useState<string[]>([]);
   const [lineColors, setLineColors] = useState(() => {
     const storedColors = localStorage.getItem(`${projectId}_${chartType}_lineColors`);
     return storedColors ? JSON.parse(storedColors) : ["#3b82f6", "#10b981"];
@@ -36,6 +46,42 @@ const LineChart = () => {
     const savedLogoUrl = localStorage.getItem(`${projectId}_${chartType}_logoUrl`);
     return savedLogoUrl || '/favicon.ico';
   });
+
+  const [isYAxisDropdownOpen, setIsYAxisDropdownOpen] = useState(false);
+  const yAxisDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (yAxisDropdownRef.current && !yAxisDropdownRef.current.contains(event.target)) {
+        setIsYAxisDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const toggleYAxisColumn = (column: string) => {
+    setYAxisColumns(prev => {
+      const newYAxisColumns = prev.includes(column)
+        ? prev.filter(c => c !== column)
+        : [...prev, column];
+      
+      // Save the updated Y-axis columns to local storage
+      localStorage.setItem(`${projectId}_${chartType}_yAxisColumns`, JSON.stringify(newYAxisColumns));
+      
+      return newYAxisColumns;
+    });
+  };
+
+  useEffect(() => {
+    const savedYAxisColumns = localStorage.getItem(`${projectId}_${chartType}_yAxisColumns`);
+    if (savedYAxisColumns) {
+      setYAxisColumns(JSON.parse(savedYAxisColumns));
+    }
+  }, [projectId, chartType]);
   
   const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -78,6 +124,19 @@ const LineChart = () => {
     localStorage.setItem(`${projectId}_${chartType}_logoPosition`, logoPosition);
     localStorage.setItem(`${projectId}_${chartType}_logoUrl`, logoUrl);
   }, [isLabelStyle, titleAlignment, sourceName, sourceURL, chartTitle, lineColors, showMarkers, curveType, showColorOptions, xAxisTitle, yAxisTitle, projectId, chartType, logoPosition, logoUrl]);
+
+
+  useEffect(() => {
+    if (xAxisColumn) {
+      localStorage.setItem(`${projectId}_${chartType}_xAxisColumn`, xAxisColumn);
+    }
+  }, [xAxisColumn, projectId, chartType]);
+
+  useEffect(() => {
+    if (yAxisColumns.length > 0) {
+      localStorage.setItem(`${projectId}_${chartType}_yAxisColumns`, JSON.stringify(yAxisColumns));
+    }
+  }, [yAxisColumns, projectId, chartType]);
 
   const handleLabelStyleChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setIsLabelStyle(event.target.value === "label");
@@ -146,6 +205,54 @@ const LineChart = () => {
     setIsModalOpen(false);
   };
 
+  const handleXAxisColumnChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const newXAxisColumn = event.target.value;
+    setXAxisColumn(newXAxisColumn);
+    localStorage.setItem(`${projectId}_${chartType}_xAxisColumn`, newXAxisColumn);
+  };
+
+  const handleYAxisColumnChange = (column: string) => {
+    const newYAxisColumns = yAxisColumns.includes(column)
+      ? yAxisColumns.filter(c => c !== column)
+      : [...yAxisColumns, column];
+    setYAxisColumns(newYAxisColumns);
+    localStorage.setItem(`${projectId}_${chartType}_yAxisColumns`, JSON.stringify(newYAxisColumns));
+  };
+
+  const updateAvailableColumns = (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => {
+    setAvailableColumns(headers);
+  
+    const alphabetic = headers.filter((_, index) => 
+      data.every(row => isNaN(Number(row[index])))
+    );
+    setAlphabeticColumns(alphabetic);
+  
+    const numeric = headers.filter((_, index) => 
+      data.every(row => !isNaN(Number(row[index])))
+    );
+    setNumericColumns(numeric);
+  
+    // Update yAxisColumns to only include available numeric columns
+    setYAxisColumns(prev => prev.filter(col => numeric.includes(col)));
+  
+    // Only set default X and Y axis if they haven't been set before
+    if (!xAxisColumn && defaultX) {
+      setXAxisColumn(defaultX);
+      localStorage.setItem(`${projectId}_${chartType}_xAxisColumn`, defaultX);
+    }
+    if (yAxisColumns.length === 0 && defaultY.length > 0) {
+      const availableDefaultY = defaultY.filter(col => numeric.includes(col));
+      setYAxisColumns(availableDefaultY);
+      localStorage.setItem(`${projectId}_${chartType}_yAxisColumns`, JSON.stringify(availableDefaultY));
+    }
+  };
+
+  const handleAxisChange = (newXAxis: string, newYAxes: string[]) => {
+    setXAxisColumn(newXAxis);
+    setYAxisColumns(newYAxes);
+  };
+
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -169,10 +276,62 @@ const LineChart = () => {
             yAxisTitle={yAxisTitle}
             logoPosition={logoPosition}
             logoUrl={logoUrl}
+            xAxisColumn={xAxisColumn}
+            yAxisColumns={yAxisColumns}
+            updateAvailableColumns={updateAvailableColumns}
+            onAxisChange={handleAxisChange}
           />
         </div>
         
         <div className="w-1/4 pl-4">
+        <div className="mb-4">
+          <label htmlFor="x-axis-select" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            X-Axis Column
+          </label>
+          <select
+            id="x-axis-select"
+            value={xAxisColumn}
+            onChange={handleXAxisColumnChange}
+            className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary"
+          >
+            {alphabeticColumns.map((column) => (
+              <option key={column} value={column}>{column}</option>
+            ))}
+          </select>
+        </div>
+{/* Y-Axis Selection */}
+<div className="mb-4 relative" ref={yAxisDropdownRef}>
+  <label htmlFor="y-axis-select" className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+    Y-Axis Columns
+  </label>
+  <div
+    className="block w-full p-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600 dark:text-black dark:focus:ring-primary dark:focus:border-primary cursor-pointer"
+    onClick={() => setIsYAxisDropdownOpen(!isYAxisDropdownOpen)}
+  >
+    {yAxisColumns.filter(col => numericColumns.includes(col)).length > 0 
+      ? yAxisColumns.filter(col => numericColumns.includes(col)).join(', ') 
+      : 'Select Y-Axis Columns'}
+  </div>
+  {isYAxisDropdownOpen && (
+    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+      {numericColumns.map((column) => (
+        <div key={column} className="flex items-center p-2 hover:bg-gray-100">
+          <input
+            type="checkbox"
+            id={`y-axis-${column}`}
+            checked={yAxisColumns.includes(column)}
+            onChange={() => toggleYAxisColumn(column)}
+            className="mr-2"
+          />
+          <label htmlFor={`y-axis-${column}`} className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            {column}
+          </label>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
           <div className="mb-4">
             <label htmlFor="x-axis-title" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
               X-Axis Title

@@ -42,11 +42,29 @@ const AreaChart: React.FC<AreaChartProps> = ({
   logoUrl = '/favicon.ico',
   showLogo = true
 }) => {
-  const categories = tableData.map(row => row[0] as string);
+  const chartData = useMemo(() => {
+    if (!tableData || tableData.length === 0 || headers.length < 2) {
+      return {
+        categories: [],
+        series: []
+      };
+    }
+
+    const categories = tableData.map(row => String(row[0]));
+    const series = headers.slice(1).map((header, index) => ({
+      name: header,
+      data: tableData.map(row => {
+        const value = row[index + 1];
+        return typeof value === 'number' ? value : parseFloat(value as string) || 0;
+      })
+    }));
+
+    return { categories, series };
+  }, [headers, tableData]);
 
   const getLogoStyle = (position: string) => {
     const base = {
-      position: 'absolute',
+      position: 'absolute' as 'absolute',
       width: '20px',
       height: '20px',
     };
@@ -65,13 +83,6 @@ const AreaChart: React.FC<AreaChartProps> = ({
   };
 
   const logoStyle = getLogoStyle(logoPosition);
-  const series = useMemo(() => {
-    return headers.slice(1).map((header, index) => ({
-      name: header,
-      data: tableData.map(row => parseFloat(row[index + 1] as string) || 0)
-    }));
-  }, [headers, tableData]);
-
   
   const options = useMemo(() => ({
     chart: {
@@ -105,7 +116,6 @@ const AreaChart: React.FC<AreaChartProps> = ({
         color: '#263238'
       },
     },
-    
     legend: {
       position: "bottom",
     },
@@ -117,7 +127,7 @@ const AreaChart: React.FC<AreaChartProps> = ({
       }
     },
     xaxis: {
-      categories: categories,
+      categories: chartData.categories,
       title: {
         text: xAxisTitle
       }
@@ -141,28 +151,32 @@ const AreaChart: React.FC<AreaChartProps> = ({
         opacity: 0.5
       },
     },
-  }), [categories, areaColors, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, showMarkers, headers, xAxisTitle, yAxisTitle, curveType, fillOpacity, logoPosition]);
+  }), [chartData.categories, areaColors, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, showMarkers, xAxisTitle, yAxisTitle, curveType, fillOpacity, logoPosition]);
+
+  if (chartData.series.length === 0) {
+    return <div>No data available for the chart</div>;
+  }
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-8">
-       <div style={{ position: 'relative' }}>
-      <div id="areaChart" className="-mb-9 -ml-5">
-        <ReactApexChart
-          options={options}
-          series={series}
-          type="area"
-          height={350}
-          width={"100%"}
-        />
-      </div>
-      {showLogo && (
+      <div style={{ position: 'relative' }}>
+        <div id="areaChart" className="-mb-9 -ml-5">
+          <ReactApexChart
+            options={options}
+            series={chartData.series}
+            type="area"
+            height={350}
+            width={"100%"}
+          />
+        </div>
+        {showLogo && (
           <img 
             src={logoUrl}
             alt="Logo" 
             style={logoStyle}
           />
         )}
-         {(sourceName || sourceURL) && (
+        {(sourceName || sourceURL) && (
           <div style={{
             position: 'absolute',
             bottom: '30px',

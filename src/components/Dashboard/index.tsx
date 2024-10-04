@@ -145,11 +145,14 @@ const Dashboard: React.FC = () => {
     const projectChart = projectCharts[project.id];
     const tableSelection = JSON.parse(localStorage.getItem(`project_${project.id}_table`));
     const scorecardSelection = JSON.parse(localStorage.getItem(`project_${project.id}_scorecard`));
+    const mapSelection = JSON.parse(localStorage.getItem(`project_${project.id}_map`));
   
     if (tableSelection && tableSelection.selected) {
       router.push(`/tables?projectId=${project.id}`);
     } else if (scorecardSelection && scorecardSelection.selected) {
       router.push(`/scorecard?projectId=${project.id}`);
+    }else if (mapSelection && mapSelection.selected) {
+      router.push(`/map?projectId=${project.id}`);
     }else if (projectChart && projectChart.specificType) {
       router.push(`/forms/${projectChart.specificType}?projectId=${project.id}`);
     } else if (projectChart && projectChart.generalType) {
@@ -230,9 +233,13 @@ const Dashboard: React.FC = () => {
               timestamp: new Date().toISOString()
             }));
             break;
-      case 'maps':
-        route = `/forms/map-types`;
-        break;
+            case 'maps':
+              route = `/map`;
+              localStorage.setItem(`project_${projectId}_map`, JSON.stringify({
+                selected: true,
+                timestamp: new Date().toISOString()
+              }));
+              break;
       default:
         route = `/forms/chart-types`;
     }

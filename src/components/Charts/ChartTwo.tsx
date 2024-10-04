@@ -6,8 +6,8 @@ import dynamic from 'next/dynamic';
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
 interface ChartTwoProps {
-  headers?: string[];
-  tableData?: (string | number)[][];
+  headers: string[];
+  tableData: (string | number)[][];
   color: string;
   design: string;
   gridVariation: string;
@@ -20,18 +20,17 @@ interface ChartTwoProps {
   chartTitle: string;
   isLabelStyle: boolean;
   labelPosition: "above" | "axis";
-  seriesNames?: string[];
+  seriesNames: string[];
   xAxisTitle: string;
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   showLogo: boolean;
   logoUrl: string;
-  
 }
 
 const ChartTwo: React.FC<ChartTwoProps> = ({ 
-  headers = [], 
-  tableData = [], 
+  headers, 
+  tableData, 
   color,
   design,
   gridVariation,
@@ -44,18 +43,13 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
   chartTitle,
   isLabelStyle,
   labelPosition,
+  seriesNames,
   xAxisTitle,
   yAxisTitle,
-  seriesNames = ["Fossil fuels sources", "Low-carbon sources"],
   logoPosition = 'top-right',
   logoUrl = '/favicon.ico',
   showLogo = true
 }) => {
-  const countries = tableData.map(row => row[0] as string);
-  const fossilFuels = tableData.map(row => parseFloat(row[1] as string) || 0);
-  const lowCarbon = tableData.map(row => parseFloat(row[2] as string) || 0);
-
-
   const getLogoStyle = (position: string) => {
     const base = {
       position: 'absolute',
@@ -78,10 +72,18 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
 
   const logoStyle = getLogoStyle(logoPosition);
 
+  const processedData = useMemo(() => {
+    const xAxisData = tableData.map(row => row[0]);
+    const yAxisData = headers.slice(1).map((_, index) => 
+      tableData.map(row => parseFloat(row[index + 1] as string) || 0)
+    );
+    return { xAxisData, yAxisData };
+  }, [headers, tableData]);
+
   const options = useMemo(() => ({
     chart: {
-      type: design === "grid" && gridVariation === "multiple" ? "line" : "bar",
-      stacked: design === "grid" && gridVariation === "single",
+      type: "bar", // Always set to "bar"
+      stacked: false, // Ensure it's not stacked
       toolbar: { show: false },
       events: {
         mounted: (chart: any) => {
@@ -90,14 +92,16 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
       },
       padding: { bottom: 20 },
     },
-    colors: [color, "#3b82f6"],
+    colors: headers.length > 1 
+      ? [color, ...Array(Math.max(0, headers.length - 2)).fill("#3b82f6")]
+      : [color],
     plotOptions: {
       bar: {
         horizontal: true,
         borderRadius: 0,
         columnWidth: "25%",
-        borderRadiusApplication: "end",
-        borderRadiusWhenStacked: "last",
+        barHeight: '65%', // Adjust this value to change the height of the bars
+        distributed: false, // Ensure bars are not distributed
         dataLabels: {
           position: labelPosition === 'above' ? 'top' : 'bottom',
         },
@@ -112,7 +116,7 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
       }
     },
     xaxis: {
-      categories: countries,
+      categories: processedData.xAxisData,
       position: xAxisPosition as "top" | "bottom",
       title: {
         text: xAxisTitle,
@@ -173,19 +177,16 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
   }), [
     color, design, gridVariation, xAxisPosition, yAxisPosition, titleAlignment, 
     valuesPosition, chartTitle, sourceName, sourceURL, xAxisTitle,
-    yAxisTitle, isLabelStyle, labelPosition, countries, logoPosition
+    yAxisTitle, isLabelStyle, labelPosition, processedData, headers
   ]);
 
-  const series = useMemo(() => [
-    {
-      name: seriesNames[0],
-      data: fossilFuels,
-    },
-    {
-      name: seriesNames[1],
-      data: lowCarbon,
-    },
-  ], [seriesNames, fossilFuels, lowCarbon]);
+  const series = useMemo(() => 
+    headers.slice(1).map((header, index) => ({
+      name: seriesNames[index] || header,
+      data: processedData.yAxisData[index],
+    })),
+    [headers, seriesNames, processedData]
+  );
 
   useEffect(() => {
     console.log("Series Names:", seriesNames);
@@ -195,23 +196,23 @@ const ChartTwo: React.FC<ChartTwoProps> = ({
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
        <div style={{ position: 'relative' }}>
-      <div id="chartTwo" className="-mb-9 -ml-5">
-        <ReactApexChart
-          options={options}
-          series={series}
-          type={options.chart.type}
-          height={350}
-          width={"100%"}
-        />
-      </div>
-      {showLogo && (
+        <div id="chartTwo" className="-mb-9 -ml-5">
+          <ReactApexChart
+            options={options}
+            series={series}
+            type={options.chart.type}
+            height={350}
+            width={"100%"}
+          />
+        </div>
+        {showLogo && (
           <img 
             src={logoUrl}
             alt="Logo" 
             style={logoStyle}
           />
         )}
-        </div>
+      </div>
     </div>
   );
 };

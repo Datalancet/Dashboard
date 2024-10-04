@@ -24,7 +24,7 @@ interface StackedColumnChartProps {
   showLogo: boolean;
   logoUrl: string;
   showPercentages: boolean;
-  seriesNames: string[]; // Add this line to include seriesNames
+  seriesNames: string[];
 }
 
 const StackedColumnChart: React.FC<StackedColumnChartProps> = ({ 
@@ -50,13 +50,25 @@ const StackedColumnChart: React.FC<StackedColumnChartProps> = ({
   showLogo = true,
   seriesNames
 }) => {
-  const categories = tableData.map(row => row[0] as string);
-  const series = useMemo(() => {
-    return seriesNames.map((name, index) => ({
-      name: name,
-      data: tableData.map(row => parseFloat(row[index + 1] as string) || 0)
+  const chartData = useMemo(() => {
+    if (!tableData || tableData.length === 0 || headers.length < 2) {
+      return {
+        categories: [],
+        series: []
+      };
+    }
+
+    const categories = tableData.map(row => String(row[0]));
+    const series = headers.slice(1).map((header, index) => ({
+      name: seriesNames[index] || header,
+      data: tableData.map(row => {
+        const value = row[index + 1];
+        return typeof value === 'number' ? value : parseFloat(value as string) || 0;
+      })
     }));
-  }, [seriesNames, tableData]);
+
+    return { categories, series };
+  }, [headers, tableData, seriesNames]);
 
   const getLogoStyle = (position: string) => {
     const base = {
@@ -113,7 +125,7 @@ const StackedColumnChart: React.FC<StackedColumnChartProps> = ({
       }
     },
     xaxis: {
-      categories: categories,
+      categories: chartData.categories,
       position: xAxisPosition as "top" | "bottom",
       title: {
         text: xAxisTitle,
@@ -144,7 +156,7 @@ const StackedColumnChart: React.FC<StackedColumnChartProps> = ({
     tooltip: {
       y: {
         formatter: function (val: number) {
-          return val.toFixed(2);
+          return showPercentages ? `${val.toFixed(1)}%` : val.toFixed(2);
         }
       }
     },
@@ -161,9 +173,13 @@ const StackedColumnChart: React.FC<StackedColumnChartProps> = ({
   }), [
     colors, design, gridVariation, xAxisPosition, yAxisPosition, titleAlignment, 
     valuesPosition, chartTitle, sourceName, sourceURL, xAxisTitle,
-    yAxisTitle, isLabelStyle, labelPosition, categories, logoPosition, showPercentages,
-    seriesNames // Add this to ensure the chart updates when series names change
+    yAxisTitle, isLabelStyle, labelPosition, chartData.categories, logoPosition, showPercentages,
+    seriesNames
   ]);
+
+  if (chartData.series.length === 0) {
+    return <div>No data available for the chart</div>;
+  }
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-4">
@@ -171,7 +187,7 @@ const StackedColumnChart: React.FC<StackedColumnChartProps> = ({
         <div id="stackedColumnChart" className="-mb-9 -ml-5">
           <ReactApexChart
             options={options}
-            series={series}
+            series={chartData.series}
             type="bar"
             height={350}
             width={"100%"}

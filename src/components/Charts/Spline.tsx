@@ -40,7 +40,7 @@ const SplineChart: React.FC<SplineChartProps> = ({
   logoUrl = '/favicon.ico',
   showLogo = true
 }) => {
-  const categories = tableData.map(row => row[0] as string);
+  const categories = useMemo(() => tableData.map(row => row[0] as string), [tableData]);
   const series = useMemo(() => {
     return headers.slice(1).map((header, index) => ({
       name: header,
@@ -70,8 +70,6 @@ const SplineChart: React.FC<SplineChartProps> = ({
 
   const logoStyle = getLogoStyle(logoPosition);
 
- 
-
   const options = useMemo(() => ({
     chart: {
       type: 'line' as const,
@@ -87,7 +85,7 @@ const SplineChart: React.FC<SplineChartProps> = ({
       enabled: isLabelStyle,
     },
     stroke: {
-      curve: 'smooth', // Always set to smooth
+      curve: 'smooth', // Always set to smooth for spline chart
       width: 2,
     },
     title: {
@@ -100,7 +98,6 @@ const SplineChart: React.FC<SplineChartProps> = ({
         color: '#263238'
       },
     },
-   
     legend: {
       position: "bottom",
     },
@@ -136,28 +133,28 @@ const SplineChart: React.FC<SplineChartProps> = ({
         opacity: 0.5
       },
     },
-  }), [categories, lineColors, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, showMarkers, headers, xAxisTitle, yAxisTitle, logoPosition]);
+  }), [categories, lineColors, titleAlignment, chartTitle, sourceName, sourceURL, isLabelStyle, showMarkers, xAxisTitle, yAxisTitle, logoPosition]);
 
   return (
     <div className="col-span-12 rounded-sm border border-stroke bg-white p-7.5 shadow-default dark:border-strokedark dark:bg-boxdark xl:col-span-8">
-       <div style={{ position: 'relative' }}>
-      <div id="lineChart" className="-mb-9 -ml-5">
-        <ReactApexChart
-          options={options}
-          series={series}
-          type="line"
-          height={350}
-          width={"100%"}
-        />
-      </div>
-      {showLogo && (
+      <div style={{ position: 'relative' }}>
+        <div id="splineChart" className="-mb-9 -ml-5">
+          <ReactApexChart
+            options={options}
+            series={series}
+            type="line"
+            height={350}
+            width={"100%"}
+          />
+        </div>
+        {showLogo && (
           <img 
             src={logoUrl}
             alt="Logo" 
-            style={logoStyle}
+            style={logoStyle as React.CSSProperties}
           />
         )}
-         {(sourceName || sourceURL) && (
+        {(sourceName || sourceURL) && (
           <div style={{
             position: 'absolute',
             bottom: '30px',

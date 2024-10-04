@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import DataTable from "@/components/DataTable/index";
 import StackedBar from "../Charts/StackedBar";
-import html2canvas from "html2canvas";
 import { useSearchParams } from 'next/navigation';
 import Papa from "papaparse";
 
@@ -25,6 +24,10 @@ interface StackedChartWithTableProps {
   yAxisTitle: string;
   logoPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   logoUrl: string;
+  xAxisColumn: string;
+  yAxisColumns: string[];
+  updateAvailableColumns: (headers: string[], data: any[][], defaultX: string, defaultY: string[]) => void;
+  onAxisChange: (xAxis: string, yAxes: string[]) => void;
 }
 
 const StackedChartWithTable: React.FC<StackedChartWithTableProps> = ({
@@ -44,11 +47,15 @@ const StackedChartWithTable: React.FC<StackedChartWithTableProps> = ({
   yAxisTitle,
   logoPosition,
   logoUrl,
-  seriesNames
+  seriesNames,
+  xAxisColumn,
+  yAxisColumns,
+  updateAvailableColumns,
+  onAxisChange
 }) => {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') || 'default';
-  const chartType = 'stacked-bar'; // This identifies the chart type
+  const chartType = 'stacked-bar';
 
   const [tableData, setTableData] = useState<any[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -56,43 +63,6 @@ const StackedChartWithTable: React.FC<StackedChartWithTableProps> = ({
     const savedMethod = localStorage.getItem(`${projectId}_${chartType}_aggregationMethod`);
     return (savedMethod as 'none' | 'sum' | 'count') || 'none';
   });
-  const [aggregatedData, setAggregatedData] = useState<any[]>([]);
-  // Example data for initial chart rendering
-  const initialData = [
-    ["Country", "Fossil fuels sources", "Low-carbon sources", "Region", ""],
-    ["China", 36222.58785, 7195.872996, "East Asia Pacific", ""],
-    ["Indonesia", 2068.531663, 182.877434, "East Asia Pacific", ""],
-    ["Russia", 7556.898861, 1133.111644, "Europe and Central Asia", ""],
-    ["Turkey", 1581.966414, 279.5225517, "Europe and Central Asia", ""],
-    ["Brazil", 1840.248858, 1529.716619, "Latin America and Caribbean", ""],
-    ["Mexico", 1657.604034, 216.0925264, "Latin America and Caribbean", ""],
-    ["Iran", 3333.616802, 52.55197211, "Middle East and North Africa", ""],
-    ["Egypt", 988.2385589, 65.66415167, "Middle East and North Africa", ""],
-    ["Canada", 2483.220204, 1366.680287, "North America", ""],
-    ["United States", 21016.76361, 4654.851322, "North America", ""],
-    ["India", 8814.637053, 948.8110477, "South Asia", ""],
-    ["Pakistan", 917.6985869, 152.0718743, "South Asia", ""],
-    ["South Africa", 1308.656389, 72.36667817, "Sub-Saharan Africa", ""]
-  ];
-
-  useEffect(() => {
-    // Load data from localStorage based on projectId and chartType
-    const storedHeaders = localStorage.getItem(`${projectId}_${chartType}_headers`);
-    const storedData = localStorage.getItem(`${projectId}_${chartType}_tableData`);
-
-    if (storedHeaders && storedData) {
-      setHeaders(JSON.parse(storedHeaders));
-      setTableData(JSON.parse(storedData));
-    } else if (tableData.length === 0) {
-      // Use initial data if no stored data is found
-      setHeaders(initialData[0]);
-      setTableData(initialData.slice(1));
-    }
-  }, [projectId, chartType]);
-  useEffect(() => {
-    aggregateData();
-  }, [tableData, aggregationMethod]);
-
 
   const updateDataFileOnServer = async (csvContent) => {
     try {
@@ -141,77 +111,103 @@ const StackedChartWithTable: React.FC<StackedChartWithTableProps> = ({
     }
   };
 
-  const handleDataChange = async (newHeaders: string[], newData: any[]) => {
+  const handleDataChange = useCallback(async (newHeaders: string[], newData: any[]) => {
     setHeaders(newHeaders);
     setTableData(newData);
-  
-    // Save data to API
-    try {
-      if (!projectId) {
-        throw new Error('No project ID available');
+
+    // Find default X and Y axes
+    let defaultX = '';
+    let defaultY: string[] = [];
+
+    // Find the first non-numeric column for X-axis
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => isNaN(Number(row[i])))) {
+        defaultX = newHeaders[i];
+        break;
       }
-  
-      // Prepare CSV content
+    }
+
+    // Find the first two numeric columns for Y-axis
+    for (let i = 0; i < newHeaders.length; i++) {
+      if (newData.every(row => !isNaN(Number(row[i])))) {
+        defaultY.push(newHeaders[i]);
+        if (defaultY.length === 2) break;
+      }
+    }
+
+    updateAvailableColumns(newHeaders, newData, defaultX, defaultY);
+
+    // Only call onAxisChange if xAxisColumn or yAxisColumns are not set
+    if (!xAxisColumn || yAxisColumns.length === 0) {
+      onAxisChange(defaultX, defaultY);
+    }
+
+    try {
       const csvContent = Papa.unparse([newHeaders, ...newData]);
-  
       const result = await updateDataFileOnServer(csvContent);
       console.log('Data saved successfully to API:', result);
     } catch (error) {
       console.error('Error saving data to API:', error);
-      // Handle error (e.g., show error message to user)
     }
-  };
+  }, [projectId, updateAvailableColumns, updateDataFileOnServer, onAxisChange, xAxisColumn, yAxisColumns]);
 
-  console.log("StackedChartWithTable received title:", chartTitle);
-  console.log("StackedChartWithTable - Source Name:", sourceName);
-  console.log("StackedChartWithTable - Source URL:", sourceURL);
   const handleAggregationMethodChange = (method: 'none' | 'sum' | 'count') => {
     setAggregationMethod(method);
     localStorage.setItem(`${projectId}_${chartType}_aggregationMethod`, method);
   };
 
-  const aggregateData = () => {
-    if (aggregationMethod === 'none') {
-      setAggregatedData(tableData);
-      return;
+  const aggregateData = useCallback(() => {
+    if (aggregationMethod === 'none' || !xAxisColumn || yAxisColumns.length === 0) {
+      return tableData.map(row => {
+        const newRow = [row[headers.indexOf(xAxisColumn)]];
+        yAxisColumns.forEach(col => newRow.push(row[headers.indexOf(col)]));
+        return newRow;
+      });
     }
 
-    const aggregated = tableData.reduce((acc, curr) => {
-      const existingIndex = acc.findIndex(item => item[0] === curr[0]);
+    const xIndex = headers.indexOf(xAxisColumn);
+    const yIndices = yAxisColumns.map(col => headers.indexOf(col));
+
+    return tableData.reduce((acc, curr) => {
+      const key = curr[xIndex];
+      const existingIndex = acc.findIndex(item => item[0] === key);
+      
       if (existingIndex > -1) {
-        if (aggregationMethod === 'sum') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + parseFloat(curr[1])).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + parseFloat(curr[2])).toString();
-        } else if (aggregationMethod === 'count') {
-          acc[existingIndex][1] = (parseFloat(acc[existingIndex][1]) + 1).toString();
-          acc[existingIndex][2] = (parseFloat(acc[existingIndex][2]) + 1).toString();
-        }
+        yIndices.forEach((yIndex, i) => {
+          if (aggregationMethod === 'sum') {
+            acc[existingIndex][i + 1] = (parseFloat(acc[existingIndex][i + 1]) + parseFloat(curr[yIndex])).toString();
+          } else if (aggregationMethod === 'count') {
+            acc[existingIndex][i + 1] = (parseFloat(acc[existingIndex][i + 1]) + 1).toString();
+          }
+        });
       } else {
         if (aggregationMethod === 'count') {
-          acc.push([curr[0], '1', '1', curr[3], curr[4]]);
+          acc.push([key, ...yIndices.map(() => '1')]);
         } else {
-          acc.push(curr);
+          acc.push([key, ...yIndices.map(yIndex => curr[yIndex])]);
         }
       }
       return acc;
     }, []);
+  }, [aggregationMethod, tableData, headers, xAxisColumn, yAxisColumns]);
 
-    setAggregatedData(aggregated);
-  };
+  const aggregatedData = useMemo(() => aggregateData(), [aggregateData]);
 
-  useEffect(() => {
-    aggregateData();
-  }, [tableData, aggregationMethod]);
-
+  const chartData = useMemo(() => {
+    return {
+      headers: [xAxisColumn, ...yAxisColumns],
+      tableData: aggregatedData
+    };
+  }, [xAxisColumn, yAxisColumns, aggregatedData]);
 
   return (
     <div>
       <div id="chart">
         <StackedBar
-          headers={headers}
-          tableData={tableData}
+          headers={chartData.headers}
+          tableData={chartData.tableData}
           design={design}
-          color={color === "custom" ? "yourCustomColor" : color}
+          color={color}
           gridVariation={gridVariation}
           xAxisPosition={xAxisPosition}
           yAxisPosition={yAxisPosition}
@@ -222,12 +218,14 @@ const StackedChartWithTable: React.FC<StackedChartWithTableProps> = ({
           labelPosition={labelPosition}
           sourceName={sourceName}
           sourceURL={sourceURL}
-          seriesNames={seriesNames}
+          seriesNames={seriesNames.length >= yAxisColumns.length ? seriesNames : yAxisColumns}
           xAxisTitle={xAxisTitle}
           yAxisTitle={yAxisTitle}
           logoPosition={logoPosition} 
           logoUrl={logoUrl}
-          showLogo={true} 
+          showLogo={true}
+          xAxisColumn={xAxisColumn}
+          yAxisColumns={yAxisColumns}
         />
       </div>
       <div className="mt-4 mb-4">
